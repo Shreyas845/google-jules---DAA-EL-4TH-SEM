@@ -1,0 +1,509 @@
+# ARCHITECTURE SPECIFICATION V1
+
+---
+
+## 1. Executive Summary
+
+This document specifies the system architecture for ISL (Incremental Surprise-Leiden), a research platform for resolution-limit-free incremental community detection. The architecture prioritizes **reproducibility**, **rigorous evaluation**, and **publication-quality evidence** over production deployment.
+
+**Critical architectural finding:** Phase 2's "community closure" requirement for the affected set is **unnecessary and harmful**. The ΔS gain formula depends on global aggregates (m, p, M, N) maintained in O(1) and per-node neighbor counts (e_A, e_B) computed on-demand. A node far from the perturbation has unchanged neighbor counts unless its neighbors changed community. Community closure would inflate the affected set by orders of magnitude on graphs with large communities, destroying locality. **This is corrected in this specification.**
+
+**Key enabler discovered:** The `leidenalg` Python package by Traag natively supports `SurpriseVertexPartition`. This eliminates the need to build a static Surprise optimizer from scratch — we get the static baseline for free.
+
+---
+
+## 2. Architectural Validation
+
+### Assumptions Validated
+
+| Assumption | Status | Evidence |
+|:---|:---|:---|
+| ΔS is computable in O(d_v) | ✅ Valid | Gain formula requires scanning v's neighbors for e_A(v), e_B(v); global aggregates maintained in O(1) |
+| leidenalg supports static Surprise optimization | ✅ Valid | `SurpriseVertexPartition` class confirmed in leidenalg docs |
+| igraph supports batch edge updates | ✅ Valid | `add_edges()` and `delete_edges()` accept lists; single-edge mutation is expensive |
+| Asymptotic Surprise approximation is valid for sparse graphs | ✅ Valid | Traag et al. 2015 confirm S ≈ m·D_KL(q∥⟨q⟩) in sparse regime |
+
+### Assumptions Challenged
+
+| Assumption | Issue | Correction |
+|:---|:---|:---|
+| **Community closure is needed for affected set** | ΔS for a node v depends on e_A(v), e_B(v) and global (q, ⟨q⟩). Global quantities are O(1)-maintained. e_A(v) only changes if v's neighbors change community, NOT if a distant node in v's community is affected. Community closure inflates S₂ to include entire communities, defeating locality on graphs with large communities. | **Replace with edge-proximity expansion**: S₀ (endpoints) → S₁ (1-hop neighbors) → adaptive expansion based on ΔS magnitude at boundary. No community closure. |
+| **Leiden multi-level aggregation is needed** | Aggregation depends on modularity's additive decomposition. Surprise is not community-additive. For incremental updates on small affected sets, single-level local moves suffice. | **Drop multi-level aggregation for incremental case.** Use single-level local moves within S₂. Reserve multi-level for the full static recomputation triggered by the gap monitor (handled by leidenalg). |
+| **Surprise-gap monitor compares against cached S_full** | The cached S_full(t₀) becomes stale as the graph evolves. Comparing current S_incremental against an old S_full on a different graph is not meaningful after many updates. | **Replace with relative drift monitor**: track the trajectory of S_incremental over time. If S drops by more than ε relative to a moving average, trigger full recomputation. Alternatively, periodically recompute S_full on the current graph (not cached from the past). |
+
+### Architectural Risks from Prior Phases
+
+| Risk | Severity | Mitigation |
+|:---|:---|:---|
+| Surprise degeneracy causes non-convergence in local moves | Medium | Cap iterations; accept best-seen partition after max_iter |
+| Over-partitioning bias of Surprise | Medium | Track community count; compare against modularity partition as diagnostic |
+| HIT-Leiden baseline integration difficulty (Rust codebase) | High | Use published results for comparison if direct integration fails; implement simplified DynaMo as primary dynamic baseline |
+
+---
+
+## 3. System Architecture
+
+### Subsystem Decomposition
+
+```
+┌─────────────────────────────────────────────────┐
+│              EXPERIMENT RUNNER                   │
+│  (config, orchestration, logging, reproducibility)│
+├───────────┬──────────────┬──────────────────────┤
+│  GRAPH    │  ISL         │  BASELINE            │
+│  ENGINE   │  ALGORITHM   │  SUITE               │
+│           │  ENGINE      │                      │
+├───────────┴──────┬───────┴──────────────────────┤
+│   COMMUNITY STATE MANAGER                       │
+│   (partition, counters, per-community stats)     │
+├─────────────────────────────────────────────────┤
+│   EVALUATION ENGINE                             │
+│   (metrics, comparison, statistical tests)      │
+├─────────────────────────────────────────────────┤
+│   BENCHMARK SUITE                               │
+│   (datasets, update streams, ground truth)      │
+├─────────────────────────────────────────────────┤
+│   RESEARCH WORKBENCH                            │
+│   (visualization, analysis, debugging)          │
+└─────────────────────────────────────────────────┘
+```
+
+### Subsystem Specifications
+
+#### S1: Graph Engine
+- **Purpose:** Store and mutate graph; provide neighbor queries
+- **Technology:** `python-igraph` (C backend, fast algorithms)
+- **Key operations:** batch edge add/delete, neighbor iteration, subgraph extraction
+- **Design choice:** igraph over NetworkX (10-100× faster) and over NetworKit (igraph integrates with leidenalg natively)
+
+#### S2: Community State Manager
+- **Purpose:** Maintain partition state and all aggregate counters for O(1) Surprise computation
+- **Data maintained:**
+  - `sigma[v]` → community label for each node (array, O(1) lookup)
+  - `comm_size[c]` → |C_c| (dict)
+  - `comm_internal_edges[c]` → |E(C_c)| (dict)
+  - `m, p, M, N` → global aggregates (scalars)
+- **Operations:** `move_node(v, c_old, c_new)` updates all counters in O(d_v); `apply_edge_update(u, v, +/-)` updates m, p in O(1)
+
+#### S3: ISL Algorithm Engine
+- **Purpose:** The three-stage ISL algorithm
+- **Stage 1 (Affected Set):** BFS from update endpoints, 1-hop expansion, adaptive boundary expansion
+- **Stage 2 (Local Moves):** Louvain-style node moves within affected set using ΔS gain; connectivity check (Leiden refinement)
+- **Stage 3 (Gap Monitor):** Track S trajectory; trigger full recomputation via leidenalg when drift exceeds ε
+- **Inputs:** Graph Engine, Community State, batch Δ(t)
+- **Outputs:** Updated partition P(t+1), metrics (nodes moved, S value, time)
+
+#### S4: Baseline Suite
+- **Purpose:** Run competing methods under identical conditions
+- **Static baselines:** `leidenalg.find_partition(G, SurpriseVertexPartition)`, `leidenalg.find_partition(G, ModularityVertexPartition)`, static Louvain
+- **Dynamic baselines:** DynaMo (re-implement core logic), naive fixed-radius + local Leiden, no-update baseline
+- **HIT-Leiden:** Use published numbers or wrap Rust binary via subprocess if available
+
+#### S5: Evaluation Engine
+- **Purpose:** Compute all metrics; produce comparison tables
+- **Metrics:** NMI, ARI, Surprise, Modularity, community count, churn rate, wall-clock time, nodes reprocessed, memory
+- **Statistical rigor:** Multiple runs per config (≥10), report mean ± std, Wilcoxon signed-rank test for pairwise comparisons
+
+#### S6: Benchmark Suite
+- **Purpose:** Generate/load datasets and update streams
+- **Synthetic:** LFR with temporal extension (varying μ), SBM with merge/split events
+- **Real:** SNAP datasets (CollegeMsg, WikiTalk, Enron, DBLP)
+- **Update stream generation:** Chronological edge ordering for real datasets; controlled insertion/deletion for synthetic
+
+#### S7: Research Workbench
+- **Purpose:** Visualization and analysis for debugging and paper figures
+- **Components:** Community evolution timeline, Surprise/modularity trajectory plots, affected-set size distribution, resolution-limit demonstration plots
+
+---
+
+## 4. Data Management Strategy
+
+### Graph Storage
+- **Primary:** igraph `Graph` object (in-memory, C-backed)
+- **Update protocol:** Accumulate batch Δ(t) as list of (u,v,±) tuples → apply via `add_edges()`/`delete_edges()` in one call
+- **Scalability limit:** ~10M edges in-memory on 16GB RAM. Sufficient for all target datasets.
+
+### Community State Storage
+- **Primary:** Python dict/array overlay on igraph vertex attributes
+- `sigma`: numpy int array, length n — O(1) lookup, O(1) update
+- `comm_size`, `comm_internal_edges`: Python dicts keyed by community label
+- Global counters m, p, M, N: plain integers
+
+### Experiment Metadata
+- **Format:** JSON config files per experiment
+- **Contents:** dataset name, algorithm, parameters (ε, τ, R_max, max_iter), random seed, git commit hash
+- **Results:** JSON output with all metrics per batch, plus summary statistics
+
+### Dataset Management
+- **Directory structure:**
+  ```
+  data/
+    synthetic/
+      lfr/           # LFR benchmark configs + generated graphs
+      sbm/           # SBM configs + generated graphs
+    real/
+      snap/           # Downloaded SNAP datasets
+    streams/          # Pre-generated update streams (for reproducibility)
+  ```
+
+---
+
+## 5. Experimentation Framework
+
+### Experiment Lifecycle
+
+```
+CONFIG → LOAD DATA → GENERATE STREAM → INIT PARTITION → 
+  FOR EACH BATCH:
+    RUN ALGORITHM → RECORD METRICS → CHECK GROUND TRUTH →
+END → AGGREGATE RESULTS → STATISTICAL TESTS → SAVE
+```
+
+### Configuration Schema (per experiment)
+
+```json
+{
+  "dataset": "lfr_n10000_mu0.3",
+  "algorithm": "isl",
+  "params": {"epsilon": 0.05, "tau_min": 1e-6, "max_radius": 5, "max_iter": 100},
+  "batch_size": 50,
+  "num_batches": 200,
+  "seed": 42,
+  "baselines": ["static_surprise", "static_leiden", "dynamo", "no_update"]
+}
+```
+
+### Reproducibility Requirements
+1. All random seeds fixed and recorded
+2. Dataset generation scripts versioned (not just generated data)
+3. Update streams serialized to disk (same stream for all algorithms)
+4. Git commit hash recorded per experiment
+5. Environment spec (Python version, package versions) recorded
+
+---
+
+## 6. Benchmarking Framework
+
+### Benchmark Methodology
+
+**Principle:** Every algorithm sees the identical graph and identical update stream. No algorithm gets information the others don't.
+
+**Protocol:**
+1. Load initial graph G(0)
+2. Compute initial partition P(0) using static Surprise (leidenalg) — same for all methods
+3. Apply update batches Δ(1), Δ(2), ... sequentially
+4. After each batch: each algorithm produces P(t+1); record time, metrics
+5. After each batch: compute "oracle" partition via full static Surprise recomputation (expensive but necessary for quality measurement)
+
+### Common Benchmarking Mistakes to Avoid
+
+| Mistake | Why It Matters | Avoidance |
+|:---|:---|:---|
+| Comparing against full Louvain only | Circular if you optimize modularity; unfair if you optimize Surprise | Compare against static Surprise AND static Leiden AND at least one dynamic baseline |
+| Using modularity as sole quality metric | Circular for modularity methods; unfair to Surprise methods | Use NMI against ground truth (synthetic) + both Surprise and modularity (real) |
+| Fixed random seed with single run | Results may be seed-dependent | ≥10 runs with different seeds; report mean ± std |
+| Cherry-picking datasets | Reviewers will suspect bias | Include datasets where ISL is expected to perform WORSE (dense, few large communities) |
+| Ignoring wall-clock time | Quality claims without efficiency are incomplete | Report time per batch for every method |
+
+### Update Generation Strategies
+
+| Strategy | Purpose |
+|:---|:---|
+| Uniform random edge insertion | Baseline stress test |
+| Community-localized insertion | Tests locality exploitation |
+| Cross-community insertion (bridge edges) | Tests community boundary adaptation |
+| Hub node insertion/deletion | Tests response to structurally important changes |
+| Gradual small-community formation | **KEY TEST** — demonstrates resolution-limit advantage |
+| Burst insertion (k = O(√m)) | Tests degradation behavior |
+
+---
+
+## 7. Evaluation Architecture
+
+### Metric Suite
+
+| Category | Metric | Computed Against | Purpose |
+|:---|:---|:---|:---|
+| **Quality** | NMI | Ground truth (synthetic only) | Absolute quality |
+| **Quality** | NMI | Full static recomputation | Quality gap vs. oracle |
+| **Quality** | ARI | Ground truth | Second quality measure |
+| **Quality** | Surprise S | — | Resolution-limit-free quality |
+| **Quality** | Modularity Q | — | For comparison (secondary) |
+| **Efficiency** | Wall-clock time per batch | — | Practical speed |
+| **Efficiency** | Nodes reprocessed | — | Locality measure |
+| **Efficiency** | Speedup ratio | vs. static Surprise recomputation | Headline metric |
+| **Stability** | Community churn rate | Previous partition | Temporal stability |
+| **Stability** | Node flickering rate | 3-step window | Instability detection |
+| **Scalability** | Time vs. |V| | — | Scaling behavior |
+| **Scalability** | Memory usage | — | Resource requirement |
+| **Diagnostic** | Community count | — | Over-partitioning detection |
+| **Diagnostic** | Gap trigger rate | — | How often full recomputation fires |
+
+### Metric Interactions and Blind Spots
+
+- **Surprise vs. Modularity disagreement:** Expected on graphs with small communities. This is a FEATURE, not a bug — it demonstrates the resolution-limit advantage. Report both; analyze disagreement cases.
+- **NMI ceiling effect:** On easy graphs (low μ), all methods achieve NMI ≈ 1.0. Use harder settings (μ → 0.5) to differentiate.
+- **Time vs. quality tradeoff:** ISL may be SLOWER than HIT-Leiden (which optimizes the simpler modularity). The claim is not speed but quality. Frame comparisons accordingly.
+
+---
+
+## 8. Research Workbench Design
+
+### Core Visualizations (for paper figures)
+
+1. **Resolution-limit demonstration plot:** Side-by-side community assignments from ISL vs. static Leiden on a graph with small planted communities. ISL finds them; Leiden merges them. This is the "hero figure."
+
+2. **Surprise/Modularity trajectory:** Line plot of S and Q over time for all methods. Shows ISL maintaining high S while modularity methods plateau.
+
+3. **Affected-set size distribution:** Histogram of |S₂|/|V| per batch. Shows that locality holds (|S₂| ≪ |V| for most batches).
+
+4. **Quality-efficiency Pareto plot:** Scatter of NMI vs. time-per-batch for all methods. ISL should appear in a different region than modularity methods (higher quality, possibly similar or slightly slower speed).
+
+5. **Gap trigger timeline:** Binary timeline showing when the gap monitor fires. Should fire rarely on gradual evolution, frequently on bursty updates.
+
+### Debugging Tools
+
+- Per-batch partition dump (for debugging specific failure cases)
+- Node-move log (which nodes moved, what ΔS gain, which batch)
+- Community size distribution over time
+
+---
+
+## 9. Testing Strategy
+
+### Correctness Validation
+
+| Test | What It Validates |
+|:---|:---|
+| ΔS gain formula unit test | Compute ΔS via formula; compare against brute-force (recompute S before/after move). Must match to floating-point tolerance. |
+| Counter consistency check | After every batch: recompute m, p, M, N from scratch; compare against maintained counters. Must match exactly. |
+| Static baseline agreement | On the initial graph (no updates), ISL's partition should equal leidenalg's SurpriseVertexPartition output (same algorithm, same starting point). |
+| Trivial graph tests | Clique, star, path, disconnected components — verify correct community assignments. |
+
+### Regression Testing
+- Golden-file tests: store expected output for small fixed graphs with fixed seeds. Re-run after any code change.
+
+### Stress Testing
+- Burst insertion (k = 1000 on a 10K-edge graph)
+- Complete graph destruction (delete all edges one batch at a time)
+- Community merge/split synthetic events
+
+### Failure Detection
+- **Convergence monitor:** Log number of local-move iterations per batch. Alert if max_iter is hit frequently (suggests non-convergence).
+- **Degeneracy monitor:** Log variance of S across multiple random-order passes. High variance indicates degeneracy.
+- **Churn alarm:** Alert if churn rate exceeds 20% on a batch with fewer than 10 edge changes.
+
+---
+
+## 10. Scalability Analysis
+
+### Computational Bottlenecks
+
+| Operation | Complexity | Bottleneck At |
+|:---|:---|:---|
+| Edge update (graph mutation) | O(k) amortized (igraph batch) | k > 10⁴ per batch |
+| Affected set construction | O(k · d_avg) | High-degree hubs |
+| ΔS computation per node | O(d_v) | Hub nodes (d_v > 10⁴) |
+| Local move phase (full pass) | O(|S₂| · d_avg · max_iter) | Large affected sets |
+| Full static recomputation | O(n · d_avg · iterations) via leidenalg | Entire graph; triggered rarely |
+| NMI computation | O(n) | Not a bottleneck |
+
+### Expected Performance Envelope
+
+| Graph Size | Expected Behavior |
+|:---|:---|
+| n < 10⁴ | Fast everywhere; static recomputation is cheap enough to run every batch |
+| 10⁴ < n < 10⁵ | Sweet spot for ISL; locality provides clear speedup over static |
+| 10⁵ < n < 10⁶ | ISL in Python may become slow in local-move phase; Cython acceleration of inner loop recommended |
+| n > 10⁶ | Requires C++/Rust implementation of ISL core; Python prototype insufficient |
+
+### Memory Bottlenecks
+- igraph: ~80 bytes per edge, ~40 bytes per vertex → 10M edges ≈ 800MB
+- Community state overlay: ~20 bytes per vertex → negligible
+- **Limit:** ~10M edges on 16GB RAM
+
+### Mitigation Strategies
+- Cython-accelerate the ΔS inner loop (neighbor scanning + gain computation)
+- For graphs > 10⁶ nodes: sample-based evaluation (compute metrics on sampled subgraphs)
+- For very large batches: skip incremental; go straight to full recomputation (the gap monitor handles this automatically)
+
+---
+
+## 11. Implementation Blueprint
+
+### Sprint 1: Foundation (Week 1-2)
+**Goal:** Working static Surprise baseline + graph infrastructure
+
+- [ ] Set up project structure, dependencies (igraph, leidenalg, numpy, scikit-learn)
+- [ ] Implement Graph Engine wrapper (batch update interface over igraph)
+- [ ] Implement Community State Manager (sigma array, counters, move_node operation)
+- [ ] Verify: static Surprise via leidenalg matches manual S computation
+- [ ] Implement LFR benchmark generator (via igraph or external tool)
+- [ ] Implement basic metrics (NMI, ARI, Surprise, Modularity, time)
+
+### Sprint 2: ISL Core (Week 3-4)
+**Goal:** Working ISL algorithm
+
+- [ ] Implement ΔS gain formula with unit tests (compare against brute-force)
+- [ ] Implement Stage 1: Affected set construction (BFS + adaptive expansion)
+- [ ] Implement Stage 2: Local Surprise optimization (single-level, Louvain-style)
+- [ ] Implement Stage 3: Surprise-gap monitor + full recomputation trigger
+- [ ] Implement connectivity check (Leiden refinement within affected set)
+- [ ] Verify: on small graphs, ISL matches static Surprise closely
+
+### Sprint 3: Baselines + Evaluation (Week 5-6)
+**Goal:** Full evaluation pipeline
+
+- [ ] Implement static baselines (Louvain, Leiden, static Surprise via leidenalg)
+- [ ] Implement dynamic baselines (naive fixed-radius, DynaMo simplified, no-update)
+- [ ] Implement update stream generators (random, localized, burst, small-community formation)
+- [ ] Implement experiment runner with config files and result logging
+- [ ] Run initial experiments on LFR benchmarks (μ = 0.1 to 0.5)
+- [ ] Generate first resolution-limit demonstration plot
+
+### Sprint 4: Publication Evidence (Week 7-8)
+**Goal:** Publication-quality results
+
+- [ ] Run full experiment suite (synthetic + real datasets)
+- [ ] Run ablation studies (each ISL component removed)
+- [ ] Run parameter sensitivity (ε, τ_min, R_max)
+- [ ] Run stress tests (burst, merge/split, hub deletion)
+- [ ] Generate all paper figures
+- [ ] Compute statistical significance tests
+- [ ] Write results tables
+
+---
+
+## 12. Architectural Risks
+
+| Risk | Severity | Likelihood | Mitigation |
+|:---|:---|:---|:---|
+| Surprise degeneracy causes flickering in incremental setting | High | Medium | Minimum gain threshold τ_min; dwell-time δ; report churn rate |
+| ISL is slower than static Surprise recomputation on small graphs | Medium | High | Expected and acceptable; ISL's advantage is on medium-large graphs where static is expensive |
+| Over-partitioning produces unrealistic community structure | High | Medium | Track community count; compare against modularity; include in ablation |
+| igraph batch update overhead on large graphs | Medium | Low | Profile early; switch to NetworKit if needed |
+| HIT-Leiden baseline not reproducible (Rust binary, different environment) | High | Medium | Use published numbers with clear caveat; implement simplified version if possible |
+| leidenalg's SurpriseVertexPartition gives poor results | Medium | Low | Verified in literature; Traag is the author of both the theory and the implementation |
+
+---
+
+## 13. Jules Readiness Review
+
+### A. Fully Specified (Ready for Implementation)
+
+- [x] ΔS gain formula (exact mathematical specification)
+- [x] Community State Manager (data structures, update operations)
+- [x] Edge update processing (counter maintenance)
+- [x] Static baseline via leidenalg (`SurpriseVertexPartition`)
+- [x] Evaluation metrics (NMI, ARI, Surprise, Modularity, time, churn)
+- [x] Experiment configuration schema
+- [x] Dataset pipeline (LFR, SBM, SNAP)
+
+### B. Requires Clarification Before Coding
+
+- [ ] **Adaptive expansion criterion:** How exactly to decide when to expand S₂ beyond 1-hop. Recommendation: start with fixed 1-hop; add adaptive expansion as ablation variant later.
+- [ ] **Dwell-time mechanism:** Exact implementation of minimum dwell time δ. Recommendation: per-node counter of "batches since last move"; skip re-evaluation if counter < δ.
+- [ ] **Leiden refinement scope:** How to do connectivity check within S₂ without extracting subgraph. Recommendation: use igraph's `subgraph()` + `clusters()` on affected communities only.
+
+### C. Decisions That Must Remain Fixed
+
+1. **Objective function is Surprise, not modularity.** This is the entire research contribution.
+2. **Static baseline is leidenalg SurpriseVertexPartition.** Do not build a custom static optimizer.
+3. **igraph is the graph backend.** It integrates with leidenalg; switching to NetworkX would be 10-100× slower.
+4. **Evaluation includes NMI against ground truth on synthetic datasets.** Non-negotiable for publication.
+5. **Multiple random seeds per experiment (≥10).** Non-negotiable for statistical validity.
+
+### D. Decisions Delegable to Implementation
+
+- Internal iteration order (random vs. sequential node visiting)
+- Exact logging format (JSON vs. CSV)
+- Plot styling and figure generation
+- Directory structure details
+- Small-community-formation update stream parameters
+
+### E. High-Risk Areas
+
+1. **ΔS gain formula correctness.** A bug here invalidates all results. Must have exhaustive unit tests comparing against brute-force S recomputation.
+2. **Counter consistency.** The m, p, M, N counters must EXACTLY match recomputation from scratch at all times. Implement periodic consistency checks.
+3. **Baseline fairness.** All baselines must start from the same initial partition and see the same update stream. Any deviation invalidates comparison.
+
+### F. Requires Human Review Before Coding
+
+1. **Resolution-limit demonstration graph construction.** The "hero experiment" that shows ISL finding small communities that Leiden misses. Must be carefully designed to be convincing, not contrived.
+2. **Real dataset selection.** Confirm that SNAP datasets are appropriate and accessible.
+3. **Paper figure design.** What plots best tell the story for publication.
+
+---
+
+## 14. Recommendations
+
+1. **Start with Sprint 1 immediately.** The foundation (igraph + leidenalg + Community State Manager) is fully specified and zero-risk.
+
+2. **Implement ΔS unit tests BEFORE the ISL algorithm.** The gain formula is the core primitive; everything depends on it being correct.
+
+3. **Do NOT attempt HIT-Leiden integration in Sprint 1-2.** Use published numbers initially. Integrate the Rust binary only if time permits in Sprint 4.
+
+4. **Run the resolution-limit demonstration early (Sprint 2).** If ISL doesn't clearly outperform Leiden on small communities, the entire thesis is at risk. Find out early.
+
+5. **Accept that ISL will be slower than HIT-Leiden on speed.** The claim is quality, not speed. Frame all comparisons accordingly.
+
+---
+
+## Summary Tables
+
+### NEW INSIGHTS DISCOVERED
+1. **Community closure is unnecessary and harmful.** ΔS depends on per-node neighbor counts and global aggregates, not community-level aggregates. Closure inflates affected sets catastrophically.
+2. **leidenalg natively supports SurpriseVertexPartition.** Eliminates the need to build a static Surprise optimizer. Major implementation simplification.
+3. **Surprise-gap monitor must use relative drift, not comparison against stale cache.** The cached S_full(t₀) becomes meaningless as the graph evolves.
+4. **Multi-level aggregation is unnecessary for incremental case.** Single-level local moves suffice within small affected sets.
+5. **igraph requires batch edge updates.** Single-edge mutation triggers expensive re-indexing. Architecture must accumulate batches.
+
+### ASSUMPTIONS VALIDATED
+- ΔS is O(d_v) per node-move ✅
+- Asymptotic Surprise approximation is valid for target graph sizes ✅
+- leidenalg provides the static baseline for free ✅
+- Python + igraph is sufficient for graphs up to ~10⁵ nodes ✅
+
+### ASSUMPTIONS CHALLENGED
+- **Community closure for affected set** — REMOVED (harmful)
+- **Multi-level aggregation needed** — REMOVED (unnecessary for incremental)
+- **Surprise-gap uses cached S_full** — CORRECTED (use relative drift)
+- **ISL will be faster than modularity methods** — UNLIKELY (and not the claim)
+
+### CRITICAL ARCHITECTURAL DECISIONS
+1. igraph as graph backend (leidenalg compatibility)
+2. leidenalg for static Surprise baseline (no custom implementation)
+3. Edge-proximity affected set (NO community closure)
+4. Single-level local moves for incremental (NO multi-level aggregation)
+5. Relative drift monitor (NOT stale cache comparison)
+
+### REMAINING RISKS
+1. Surprise degeneracy → flickering in incremental setting
+2. Over-partitioning bias → unrealistic community counts
+3. HIT-Leiden baseline reproducibility
+4. Python performance ceiling at n > 10⁵
+
+### WHAT SONNET REVIEW #2 SHOULD ATTACK
+1. Is the community-closure removal justified? Could there be edge cases where it's needed?
+2. Is the over-partitioning bias of Surprise a fatal flaw for the dynamic case?
+3. Is single-level optimization sufficient, or does quality degrade without aggregation?
+4. Are the claimed speedups realistic given Python overhead?
+5. Is the Surprise sensitivity bound (T1) actually as straightforward as claimed?
+
+### WHAT A JULES IMPLEMENTATION MUST PRESERVE
+1. **ΔS formula must be unit-tested against brute-force.** No exceptions.
+2. **Counter consistency checks must run periodically.** Recompute m, p, M, N from scratch every K batches and assert equality.
+3. **All baselines must use identical initial partition and update stream.**
+4. **All experiments must use ≥10 random seeds.**
+5. **Both Surprise AND modularity must be reported for every experiment.**
+6. **The resolution-limit demonstration must be included in every experiment suite.**
+
+### CONFIDENCE LEVEL
+| Aspect | Confidence |
+|:---|:---|
+| Architecture is sound and implementable | **HIGH (85%)** |
+| Sprint 1-2 deliverables are achievable | **HIGH (90%)** |
+| ISL will demonstrate resolution-limit advantage | **HIGH (80%)** |
+| ISL will show practical speedup on medium graphs | **MODERATE (65%)** |
+| Full experiment suite is achievable in 8 weeks | **MODERATE (60%)** |
+| Results will be publication-quality | **MODERATE (55%)** — depends on empirical outcomes |
