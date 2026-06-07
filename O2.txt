@@ -1,0 +1,377 @@
+# ALGORITHM SPECIFICATION V1
+
+---
+
+## 1. Direction Selection
+
+### Selected Direction: Incremental Asymptotic Surprise Optimization
+
+**Working Title:** *"Beyond Modularity: Resolution-Limit-Free Incremental Community Detection via Surprise Optimization on Dynamic Graphs"*
+
+### Why It Wins
+
+Every existing incremental community detection method — HIT-Leiden, Dynamic Frontier, DynaMo, TILES, iLCD — optimizes modularity (or a variant). Modularity has a proven, irrecoverable flaw: the resolution limit (Fortunato & Barthélemy 2007). Communities smaller than √(2m) nodes are invisible to modularity regardless of how strong their internal structure is. On a graph with 10M edges, this means communities below ~4,500 nodes are systematically missed.
+
+Surprise (Aldecoa & Marín 2011) does not suffer from this limitation. It has been studied in the static case, but **no work exists on incrementally maintaining Surprise-optimal partitions under graph updates.** This is the green field.
+
+The critical enabler is the **asymptotic approximation** by Traag, Aldecoa & Delvenne (2015):
+
+> S(P) ≈ m · D_KL(q ∥ ⟨q⟩)
+
+where q = p/m is the observed intra-community edge fraction and ⟨q⟩ = M/N is the expected fraction under a uniform null model. This transforms Surprise from an intractable hypergeometric computation into a smooth, differentiable function of aggregate partition statistics — making incremental updates feasible.
+
+### Rejected Directions
+
+| Direction | Why Rejected |
+|:---|:---|
+| **Locality-theoretic incremental detection** | Highest prestige but prohibitively hard. Requires proving partition distance bounds for an NP-hard objective. Restricted graph models (SBM) may yield results, but clean, usable bounds are unlikely within project scope. **Retained as a theoretical sub-contribution** (Surprise sensitivity analysis) rather than the primary direction. |
+| **Quality-aware adaptive correction** | Novel but too narrow for a primary contribution. An online quality estimator alone is a data-structure paper, not a community-detection paper. **Absorbed as a component** of the proposed algorithm (the Surprise-gap monitor). |
+| **Stability-aware community detection** | Practically important but too close to evolutionary clustering literature (Chakrabarti et al. 2006). Would require extensive differentiation from existing quality-smoothness tradeoff frameworks. **Retained as an evaluation dimension**, not a primary contribution. |
+| **Perturbation-aware modularity maintenance** | Dominated by HIT-Leiden (2026). Any modularity-based incremental method will be directly compared to HIT-Leiden's 10⁵× speedup and will lose on the engineering axis. Cannot compete. |
+| **Hybrid (modularity + Surprise)** | Dual-objective optimization is interesting but introduces unclear tradeoff semantics. When modularity and Surprise disagree, which wins? This ambiguity weakens the research claim. A clean single-objective (Surprise) is more defensible. |
+
+---
+
+## 2. Formal Problem Statement
+
+### Graph Model
+
+Let G(t) = (V(t), E(t)) be an undirected, unweighted graph at time t with n(t) = |V(t)| nodes and m(t) = |E(t)| edges.
+
+### Update Model
+
+At each timestep, a batch of structural updates Δ(t) arrives:
+
+Δ(t) = { (u₁,v₁,+), (u₂,v₂,−), ... }
+
+where + denotes edge insertion and − denotes edge deletion. Node arrivals/departures are modeled as their incident edge insertions/deletions.
+
+Let k = |Δ(t)| be the batch size.
+
+### Quality Objective: Asymptotic Surprise
+
+Given a partition P = {C₁, C₂, ..., C_r} of V, define:
+
+- m = |E| (total edges)
+- p = Σ_c |E(C_c)| (intra-community edges)
+- n_c = |C_c| (size of community c)
+- M = Σ_c n_c(n_c − 1)/2 (total possible intra-community edges)
+- N = n(n − 1)/2 (total possible edges)
+- q = p/m (observed intra-community edge fraction)
+- ⟨q⟩ = M/N (expected intra-community edge fraction under uniform null)
+
+**Asymptotic Surprise** (Traag et al. 2015):
+
+> S(P) = m · D_KL(q ∥ ⟨q⟩)
+
+where D_KL(x ∥ y) = x·ln(x/y) + (1−x)·ln((1−x)/(1−y))
+
+**Maximize S(P).**
+
+### Success Criteria
+
+Given partition P(t) with Surprise S(t) and update batch Δ(t), compute P(t+1) such that:
+
+1. **Quality:** S(P(t+1)) ≥ S*(t+1) − ε, where S* is the Surprise achievable by full static recomputation
+2. **Efficiency:** The number of nodes whose assignments are re-evaluated is f(k, structure) ≪ n
+3. **Stability:** Community churn rate (fraction of nodes changing assignment) is bounded when the graph change is small
+
+---
+
+## 3. Core Algorithm Specification
+
+### Algorithm Name: ISL (Incremental Surprise-Leiden)
+
+### Key Insight
+
+The asymptotic Surprise S = m · D_KL(q ∥ ⟨q⟩) depends on only four aggregate quantities: m, p, M, N. These can be maintained incrementally in O(1) per edge update. The question is how to update the *partition* efficiently.
+
+### 3.1 Incremental ΔS Derivation
+
+**Core derivation — the gain from moving node v from community A to community B:**
+
+Let the current state be (m, p, M, N) with S = m · D_KL(q ∥ ⟨q⟩).
+
+When node v (degree d_v) moves from A (size n_A) to B (size n_B):
+
+- Let e_A(v) = edges from v to other nodes in A
+- Let e_B(v) = edges from v to nodes in B
+
+**Change in intra-community edges:**
+
+> Δp = e_B(v) − e_A(v)
+
+**Change in possible intra-community edges:**
+
+> ΔM = (n_B) − (n_A − 1) = n_B − n_A + 1
+
+(v gains n_B possible intra-community edges in B, loses n_A − 1 in A)
+
+**m and N are unchanged** by a node move (only partition changes, not graph).
+
+**New Surprise after move:**
+
+> S' = m · D_KL((p + Δp)/m ∥ (M + ΔM)/N)
+
+**Gain:**
+
+> ΔS = S' − S = m · [D_KL(q' ∥ ⟨q'⟩) − D_KL(q ∥ ⟨q⟩)]
+
+where q' = (p + Δp)/m and ⟨q'⟩ = (M + ΔM)/N.
+
+This is computable in **O(d_v)** time — we need only count e_A(v) and e_B(v) by scanning v's neighbors.
+
+**Key property:** Unlike modularity's per-community decomposition, Surprise's gain depends on the *global* q and ⟨q⟩. However, since m, p, M, N are maintained as running counters, the computation remains O(d_v) per node-move evaluation.
+
+### 3.2 Edge Update Processing
+
+When edge (u, v, +) is inserted:
+
+1. m ← m + 1
+2. If σ(u) = σ(v) (same community): p ← p + 1
+3. Recompute q = p/m, ⟨q⟩ = M/N (O(1))
+4. Mark u and v as *affected*
+
+When edge (u, v, −) is deleted: symmetric with decrements.
+
+### 3.3 Three-Stage Algorithm
+
+#### Stage 1: Affected Set Construction
+
+After processing a batch Δ(t):
+
+1. **Seed set** S₀ = all nodes that are endpoints of inserted/deleted edges
+2. **1-hop expansion** S₁ = S₀ ∪ N(S₀) — neighbors of affected nodes
+3. **Community closure** S₂ = S₁ ∪ {all nodes in any community that contains a node in S₁}
+
+**Rationale:** Surprise depends on community-level aggregates (size, internal edges). If a node in community C is affected, the ΔS computation for *any* node in C may change because n_C and E(C) have changed. Community closure ensures consistency.
+
+**Adaptive expansion criterion:** If the Surprise gain from the best move in S₂ exceeds a threshold τ but the best move involves a node on the boundary of S₂, expand S₂ by one more hop. Repeat until the boundary is cold (no high-gain moves) or a maximum radius R_max is reached.
+
+#### Stage 2: Local Surprise Optimization
+
+Within the affected set S₂, perform local node moves:
+
+```
+REPEAT:
+  FOR each node v in S₂ (random order):
+    FOR each neighboring community C ≠ σ(v):
+      compute ΔS(v → C) using the gain formula
+    IF max ΔS > 0:
+      move v to argmax community
+      update p, M counters
+  UNTIL no improving move found OR max iterations reached
+```
+
+This is structurally identical to the Leiden local-moving phase, but with ΔS replacing ΔQ.
+
+**Refinement sub-phase** (adapted from Leiden): After local moves converge, check that each community in S₂ is well-connected. If a community contains disconnected components, split it and re-run local moves on the fragments. This prevents the badly-connected community problem that plagues Louvain.
+
+#### Stage 3: Surprise-Gap Monitoring & Correction Trigger
+
+Maintain a running estimate of the Surprise gap:
+
+> Ĝ(t) = |S_full(t₀) − S_incremental(t)|
+
+where S_full(t₀) is the Surprise from the last full static computation (cached).
+
+**Lightweight approximation:** After each batch, compute S_incremental directly from the maintained counters (O(1)). Compare against the cached S_full(t₀). If:
+
+> Ĝ(t) > ε · S_full(t₀)
+
+trigger a full static Surprise recomputation and reset the cache.
+
+**Why this works:** Unlike modularity, Surprise has a clean monotonic relationship with partition quality. A drop in S relative to the last-known S_full indicates accumulated drift. The threshold ε is a user parameter (recommended: ε = 0.05, meaning trigger when Surprise drops 5% relative to full recomputation).
+
+---
+
+## 4. Novel Contribution Analysis
+
+### EXISTING IDEAS (used but not claimed as novel)
+
+| Element | Source |
+|:---|:---|
+| Surprise as a community quality metric | Aldecoa & Marín 2011 |
+| Asymptotic Surprise approximation S ≈ m·D_KL(q ∥ ⟨q⟩) | Traag, Aldecoa & Delvenne 2015 |
+| Local node-move optimization (Louvain-style) | Blondel et al. 2008 |
+| Leiden refinement (well-connected guarantee) | Traag et al. 2019 |
+| Affected-region detection via BFS expansion | Standard (multiple papers since 2008) |
+| Community closure for consistency | Standard practice |
+
+### ADAPTED IDEAS (existing concepts applied in a new context)
+
+| Element | Original Context | Adaptation |
+|:---|:---|:---|
+| Incremental aggregate maintenance (m, p, M, N counters) | Modularity Δ_Q computation | Applied to Surprise; requires different aggregates because Surprise uses a uniform null model, not a configuration null model |
+| Adaptive expansion based on gain magnitude | Heuristic in various incremental methods | Applied with Surprise gain threshold τ instead of modularity |
+| Leiden refinement phase | Static Leiden algorithm | Adapted to operate only within the affected set S₂, not the full graph |
+| Quality-triggered correction | Concept discussed informally in streaming literature | Formalized with Surprise-gap estimator Ĝ(t) and relative threshold ε |
+
+### NOVEL IDEAS (do not exist in the literature)
+
+| Element | Why Novel |
+|:---|:---|
+| **Incremental ΔS node-move gain formula** | No prior work derives the gain in asymptotic Surprise from moving a single node between communities. This is the core algorithmic primitive. |
+| **Incremental Surprise optimization algorithm (ISL)** | No prior algorithm exists for maintaining a Surprise-optimal partition under streaming edge updates. Every existing incremental method targets modularity. |
+| **Surprise-gap monitor for correction triggering** | No prior method uses Surprise as a quality diagnostic for incremental community maintenance. The Ĝ(t) estimator and the ε-threshold policy are new. |
+| **Resolution-limit-free incremental community detection** | No existing incremental/dynamic method addresses the resolution limit. ISL is the first method designed to maintain multi-scale community structure incrementally. |
+| **Empirical characterization of Surprise's incremental optimization landscape** | The static Surprise landscape is known to have extreme degeneracy (Traag et al. 2015). Whether this degeneracy helps or hurts incremental optimization is unknown and would be characterized for the first time. |
+
+---
+
+## 5. Theoretical Opportunities
+
+### Ranked by Feasibility × Impact
+
+#### T1: Surprise Sensitivity Bound (Feasibility: HIGH, Impact: HIGH)
+
+**Claim:** For a graph G with m edges and a k-edge perturbation Δ, the change in optimal asymptotic Surprise is bounded:
+
+> |S*(G) − S*(G+Δ)| ≤ f(k, m)
+
+**Approach:** Since S = m · D_KL(q ∥ ⟨q⟩), and a k-edge perturbation changes m by at most k and p by at most k:
+
+- q changes by at most O(k/m)
+- ⟨q⟩ changes by at most O(k/N) (since M changes by at most O(k·n_max) and N is fixed if no new nodes)
+
+Using the Lipschitz continuity of D_KL, the *value* bound is:
+
+> |ΔS| ≤ O(k · ln(m/k))
+
+This is a straightforward calculus exercise. The bound on the *optimal partition* change is harder but the value bound alone is publishable.
+
+**Feasibility:** HIGH — this is a calculus/analysis result, not a combinatorial optimization result.
+
+#### T2: Convergence of Incremental Surprise Local Moves (Feasibility: MEDIUM, Impact: MEDIUM)
+
+**Claim:** The ISL local-move phase terminates in at most O(|S₂|²) node moves.
+
+**Approach:** Each accepted move strictly increases S. Surprise is bounded above (it cannot exceed m · ln(N/M) in the extreme case where all edges are intra-community). With a finite upper bound and strictly positive gains, convergence is guaranteed. Bounding the number of steps requires bounding the minimum gain per move, which depends on the granularity of the counters (p, M are integers, so the minimum Δp is 1, giving a minimum ΔS > 0).
+
+**Feasibility:** MEDIUM — the argument structure is clear but bounding the minimum gain tightly may be tricky.
+
+#### T3: Locality Radius for Surprise (Feasibility: LOW-MEDIUM, Impact: HIGH)
+
+**Claim:** Under mild conditions, a k-edge perturbation localized within a community of size n_c affects the Surprise-optimal partition only within distance O(log n_c) of the perturbation site.
+
+**Approach:** Use the fact that Surprise's uniform null model (unlike modularity's configuration null model) does not depend on degree sequences. This means the "global perturbation" effect that plagues modularity — where every edge insertion changes the null model contribution of every node — is **weaker** for Surprise. Formalizing this requires showing that the ΔS gain for nodes far from the perturbation is negligible.
+
+**Feasibility:** LOW-MEDIUM — the intuition is sound but the proof requires careful analysis of the KL divergence landscape.
+
+#### T4: Resolution Limit of Incremental Modularity (Feasibility: HIGH, Impact: MEDIUM)
+
+**Claim:** There exist dynamic graph sequences where incremental modularity methods (HIT-Leiden, DynaMo) provably fail to detect emerging small communities that ISL detects correctly.
+
+**Approach:** Construct a planted partition model where a small community (size √(2m)) forms gradually through edge insertions. Show that modularity-based methods merge it with a neighbor, while Surprise-based ISL resolves it correctly. This is a constructive proof using the known resolution limit theorem.
+
+**Feasibility:** HIGH — the resolution limit is a proven theorem; the construction is straightforward.
+
+---
+
+## 6. Failure Envelope
+
+### Where ISL Succeeds
+
+| Condition | Why It Succeeds |
+|:---|:---|
+| Localized updates (k ≪ m) | Affected set S₂ is small; most of graph untouched |
+| Multi-scale community structure | Surprise detects small communities that modularity misses |
+| Gradual community evolution | Warm-start from P(t) is effective; few node moves needed |
+| Sparse graphs | N ≫ m, making ⟨q⟩ small and Surprise highly discriminative |
+
+### Where ISL Fails
+
+| Condition | Why It Fails | Mitigation |
+|:---|:---|:---|
+| **Bursty updates (k → O(m))** | Affected set S₂ → V; degenerates to full recomputation | Surprise-gap trigger detects this and triggers full recomputation explicitly rather than silently degrading |
+| **Very large, sparse communities** | Surprise favors many small communities (known bias); may over-partition sparse large communities | Include community-size regularization or use Significance (Traag et al. 2015) as alternative |
+| **Extreme degeneracy** | Surprise landscape has many near-optimal partitions; incremental moves may oscillate between them | Leiden refinement phase + dwell-time constraint (node must remain in community for δ moves before re-evaluation) |
+| **Dense, homogeneous graphs (no community structure)** | Surprise is not well-defined when there is no signal; any partition scores similarly | Detect via low absolute S value; report "no significant community structure" |
+| **Node flickering from degeneracy** | Multiple near-equal Surprise partitions cause instability | Minimum dwell time δ; only accept moves where ΔS > τ_min (noise filter) |
+
+### Required Assumptions
+
+1. The graph is undirected and unweighted (the asymptotic approximation extends to weighted graphs but the analysis is more complex)
+2. The graph is sparse: m = O(n · polylog(n)). The asymptotic Surprise approximation is valid in the sparse regime.
+3. Update batches are sub-linear: k = o(m). If k = Θ(m), the method offers no advantage over static recomputation.
+4. Community structure exists. On Erdős–Rényi random graphs with no planted structure, Surprise should correctly report no significant communities — but the incremental machinery provides no benefit.
+
+### Adversarial Scenarios
+
+1. **Resolution-limit reversal:** Surprise is known to *over-estimate* the number of communities in some cases (favoring many small communities over few large ones). An adversary could construct a graph where Surprise fragments legitimate large communities. **Mitigation:** Report both Surprise and modularity; flag disagreements.
+
+2. **Synchronization attack:** Concurrent edge insertions across many disjoint communities could create a batch where the affected set S₂ covers the entire graph, defeating locality. **Mitigation:** Surprise-gap trigger detects this; falls back to full recomputation.
+
+---
+
+## 7. Research Claims
+
+### STRONG CLAIMS (high confidence, directly supported by algorithm design)
+
+1. **ISL is the first algorithm for incrementally maintaining Surprise-optimal partitions on dynamic graphs.** This is a factual claim; no prior work exists.
+
+2. **ISL avoids the resolution limit by construction.** Surprise does not have a resolution limit (proven by Aldecoa & Marín 2011). ISL inherits this property.
+
+3. **The incremental ΔS gain formula is computable in O(d_v) time per node-move evaluation.** This follows from the derivation in Section 3.1.
+
+4. **The Surprise-gap monitor Ĝ(t) is computable in O(1) per batch.** It requires only the maintained counters m, p, M, N.
+
+### MODERATE CLAIMS (defensible with experimental evidence)
+
+5. **ISL detects small communities in dynamic graphs that modularity-based incremental methods (HIT-Leiden, DynaMo) systematically miss.** Requires experimental validation on LFR benchmarks with small communities (community sizes < √(2m)).
+
+6. **ISL achieves practical speedup over static Surprise recomputation while maintaining quality within ε of the static optimum.** Requires runtime and NMI experiments on real and synthetic temporal graphs.
+
+7. **The Surprise-gap trigger fires infrequently on typical real-world update distributions (< 5% of batches), preserving the efficiency of incremental maintenance.** Requires empirical measurement on SNAP datasets.
+
+### WEAK CLAIMS (conjectured, require additional theoretical work)
+
+8. **The Surprise sensitivity bound |ΔS| ≤ O(k · ln(m/k)) implies that small perturbations cause small changes in optimal Surprise.** The value bound follows from calculus; the partition distance bound is conjectured but unproven.
+
+9. **Surprise's uniform null model produces weaker global perturbation effects than modularity's configuration null model, suggesting tighter locality for Surprise-based incremental methods.** This is a theoretical conjecture supported by the null model structure but not formally proven.
+
+10. **ISL's incremental optimization landscape is less degenerate than static Surprise optimization because the warm-start from P(t) constrains the search space.** Plausible but requires empirical characterization of the degeneracy under incremental updates.
+
+---
+
+## 8. Summary
+
+### Selected Direction
+
+**Incremental Asymptotic Surprise Optimization (ISL)**
+
+### Why It Wins
+
+1. **Maximum novelty** — no prior work exists on incremental Surprise optimization
+2. **Addresses a fundamental flaw** — every existing dynamic method inherits the resolution limit from modularity
+3. **Tractable** — the asymptotic KL-divergence approximation by Traag et al. (2015) makes the ΔS computation O(d_v) per node-move
+4. **Clean differentiation** from HIT-Leiden — competes on *quality* (resolution-limit-free detection), not speed
+5. **Multiple contribution layers** — new algorithm, new gain formula, new quality monitor, new theoretical bounds, new empirical characterization
+
+### What Architecture Phase Must Solve
+
+1. **Data structures** for maintaining m, p, M, N counters and per-community statistics (size, internal edge count) under streaming updates
+2. **Efficient neighbor enumeration** within the affected set S₂ for the local-move phase
+3. **Batch processing pipeline** — how to group Δ(t) updates, construct S₂, and trigger the three-stage algorithm
+4. **Baseline integration** — how to incorporate HIT-Leiden, DynaMo, static Leiden/Louvain as comparison baselines
+5. **Leiden refinement adaptation** — the well-connectedness check within S₂ requires careful sub-graph extraction
+
+### Open Questions
+
+1. **How severe is Surprise's over-partitioning bias in dynamic settings?** Surprise is known to favor many small communities. Does this worsen under incremental optimization, or does the warm-start constrain it?
+2. **What is the right value of ε for the Surprise-gap trigger?** Too low triggers too often (losing efficiency); too high allows drift. Likely dataset-dependent; needs empirical tuning and sensitivity analysis.
+3. **Can the Leiden multi-level aggregation phase be adapted for Surprise?** Leiden uses hierarchical aggregation that depends on modularity's community-additive structure. Surprise is not community-additive. The aggregation phase may need redesign or elimination.
+4. **How does ISL handle overlapping communities?** The current formulation assumes disjoint partitions. Extension to overlapping detection is a future direction.
+5. **Is the minimum gain threshold τ_min sufficient to prevent flickering, or is a more sophisticated temporal smoothing mechanism needed?**
+
+### Confidence Level
+
+| Aspect | Confidence |
+|:---|:---|
+| ISL is implementable | **HIGH (90%)** — the math works out; no fundamental obstacles |
+| ISL detects small communities better than modularity methods | **HIGH (85%)** — directly inherits Surprise's resolution-limit-free property |
+| ISL provides practical speedup over static recomputation | **MODERATE-HIGH (70%)** — affected-set locality should hold for typical updates, but empirical validation needed |
+| The Surprise sensitivity bound is provable | **HIGH (80%)** — it's a calculus exercise on D_KL |
+| The locality radius conjecture holds | **LOW-MODERATE (35%)** — plausible but unproven |
+| ISL is publishable at a top venue (KDD/WWW) | **MODERATE (55%)** — depends on strength of empirical results against HIT-Leiden |
+| ISL is publishable at a strong venue (CIKM/WSDM) | **MODERATE-HIGH (70%)** — novelty alone justifies this if experiments are solid |

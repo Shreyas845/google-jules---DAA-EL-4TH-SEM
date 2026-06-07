@@ -1,0 +1,576 @@
+# Research Critique: Incremental Community Detection via Adaptive Graph Partitioning
+
+---
+
+## 1. EXECUTIVE VERDICT
+
+**Verdict: Moderate promise, currently fragile.**
+
+The problem is real and nontrivial, the operating point between streaming and full recomputation is underexplored in its *adaptive* form, but as currently framed this project sits uncomfortably close to a well-populated literature and lacks the formal core that would make it defensible at a serious venue.
+
+---
+
+## 2. CORE PROBLEM RESTATEMENT
+
+**Strongest possible form:**
+
+Given a graph G(t) with known community partition C(t) and modularity Q(t), and a batch of structural updates Δ(t) (edge insertions, deletions, node arrivals, node departures), compute a partition C(t+1) such that Q(C(t+1)) ≥ Q* − ε — where Q* is the modularity achievable by full recomputation — while touching at most f(|Δ|, structure) ≪ |V| nodes, and doing so with provable or tightly characterized conditions under which this locality guarantee holds.
+
+**Why this matters specifically:**
+
+Networks at scale (100M+ nodes, millions of updates per hour) make full Louvain/Leiden recomputation computationally infeasible as a real-time or near-real-time operation. This is not a toy problem. Community structure underlies recommendation systems, misinformation routing, epidemic modeling, and fraud detection. Stale communities produce stale downstream decisions. At the same time, naive streaming approaches sacrifice quality in ways that aren't well characterized. The gap between "fast but wrong" and "correct but slow" is real, and the conditions under which it can be closed are not fully understood. That is the true problem this project should be solving.
+
+---
+
+## 3. NOVELTY ASSESSMENT
+
+### What is genuinely new (if done correctly):
+
+- A **formally defined adaptive expansion criterion** that decides when to grow the affected region beyond a naive BFS radius — if this is justified theoretically rather than tuned empirically, it is a real contribution.
+- A **quality-triggered global correction** mechanism with a principled threshold, as opposed to periodic or heuristic triggers — this could be novel if framed as an online decision rule with theoretical justification.
+- A **characterization of the operating envelope**: the formal identification of graph update classes (bounded degree perturbations, localized edge flips, community-preserving vs. community-disrupting updates) under which local re-optimization is sufficient. This framing barely exists in the literature in explicit form.
+
+### What is not new:
+
+- Incremental community detection as a concept: iLCD (Cazabet et al. 2010), QCA (2009), TILES (Rossetti et al. 2017), StreamComm, GreedyRLFD.
+- BFS-based neighborhood expansion as an affected-region proxy: used in multiple graph maintenance papers since at least 2008.
+- Local modularity re-optimization: variants of "apply Louvain locally" appear in several engineering papers.
+- Periodic global correction as a stabilization strategy: used in multiple streaming graph algorithms.
+- The fundamental tradeoff between latency and community quality: studied in the Rossetti & Cazabet 2018 ACM Computing Surveys review.
+
+### What is likely to be seen as weak novelty by reviewers:
+
+- "We do BFS around changed edges, run local Louvain, and periodically rerun global Louvain." This is the implementation, not the research. Without a formal expansion criterion or theoretical analysis, this is the description of an engineering pipeline, not a scientific contribution.
+- The word "adaptive" without a formal definition is a red flag. Adaptive compared to what? Under what criterion? Reviewers will immediately ask for a formal definition of adaptivity and a justification for why it is necessary.
+
+**Severity: Critical | Impact: Novelty, Publication Risk**
+
+*Research opportunity: The gap in the literature is not "incremental community detection exists" but "when exactly does local suffice?" Reframing the contribution as a formal characterization of locality conditions — with the algorithm as a byproduct — would immediately elevate novelty.*
+
+---
+
+## 4. HIDDEN ASSUMPTIONS AND FAILURE MODES
+
+### Assumption 1: Graph updates are structurally local
+
+**What it assumes:** Most updates affect only a small neighborhood, so local re-optimization captures the true change.
+
+**How it fails:** Social networks exhibit bursty behavior. A trending hashtag, a viral post, or a celebrity account joining can simultaneously add thousands of edges across unrelated communities. At high update rates, the "local" assumption collapses entirely and the method degenerates toward full recomputation anyway. Worse, it does so without any signal that this has happened.
+
+**Severity: Major | Impact: Correctness, Scalability**
+
+*Research opportunity: Characterize the burst threshold — the edge-addition rate above which locality breaks down — and make it an explicit operating parameter. This gives the paper a principled scope claim instead of a vague one.*
+
+---
+
+### Assumption 2: Modularity degrades gracefully during incremental updates
+
+**What it assumes:** Local re-optimization keeps global modularity close to the optimum between global correction passes.
+
+**How it fails:** Modularity optimization is NP-hard and the landscape is rugged with many local optima. A small local change can push the algorithm into a different basin of attraction, and once there, no amount of local optimization will return it to the global optimum. The global correction pass may itself land in a different local optimum than a fresh run, especially if the local updates have already warped the community boundaries.
+
+**Severity: Major | Impact: Correctness**
+
+*Research opportunity: This suggests studying modularity landscape stability under perturbation — a problem with connections to spectral stability theory and perturbation analysis. Even partial results (e.g., modularity can degrade at most by O(k/m) after k edge insertions) would constitute a publishable theoretical finding.*
+
+---
+
+### Assumption 3: The affected region boundary is meaningful
+
+**What it assumes:** Nodes outside the BFS/adaptive radius are unaffected and need not be reconsidered.
+
+**How it fails:** Communities are non-local objects. The modularity contribution of a node depends on its degree relative to the total graph degree (via the m term in the null model). A single hub node deletion changes the null model globally and in principle affects the optimal partition of every node in the graph. This is not a minor edge case; it is a structural property of the modularity objective.
+
+**Severity: Critical | Impact: Correctness, Novelty**
+
+*Research opportunity: This is the most important theoretical question in the project. Formalizing exactly when and how the null model perturbation from a local update remains below a significance threshold gives the formal justification for the local re-optimization strategy. Without this, the method is an empirical heuristic. With this, it becomes a principled approximation.*
+
+---
+
+### Assumption 4: Periodic global correction prevents drift accumulation
+
+**What it assumes:** Running global Louvain/Leiden every K updates is sufficient to prevent quality degradation over time.
+
+**How it fails:** If K is set by time or update count rather than quality degradation, the system may be overcorrecting (wasting the incremental benefit) or undercorrecting (allowing quality to fall below acceptable thresholds). The optimal K almost certainly depends on the update rate, the structural volatility of the graph, and the current modularity gap — none of which are known in advance. A fixed K is therefore almost surely wrong in general.
+
+**Severity: Major | Impact: Correctness**
+
+*Research opportunity: Replace periodic correction with an online quality estimator. If you can maintain a running approximation of the modularity gap between the current incremental partition and the last global-pass partition, you can trigger correction when the gap exceeds a threshold ε. This turns the correction strategy into a principled adaptive control problem and is immediately more defensible and more novel than a fixed period.*
+
+---
+
+### Assumption 5: Modularity is the right objective
+
+**What it assumes:** Modularity Q faithfully represents "good community structure" across all graph sizes and community sizes.
+
+**How it fails:** The resolution limit (Fortunato & Barthélemy 2007) is not a minor technical footnote. Modularity cannot detect communities smaller than approximately √(2m) nodes. For a graph with 10M edges, this means communities smaller than ~4500 nodes are invisible to modularity. Many real social communities (niche forums, small professional circles) are precisely in this range. An incremental method that preserves modularity faithfully may still be producing deeply wrong community structure by any other measure.
+
+**Severity: Major | Impact: Correctness, Novelty**
+
+*Research opportunity: Include Surprise or Significance as a secondary quality measure alongside modularity. Surprise does not suffer from the resolution limit and its behavior under incremental updates is understudied. An incremental algorithm that optimizes or tracks Surprise is more novel than one that tracks modularity.*
+
+---
+
+### Assumption 6: Community boundaries are stable between updates
+
+**What it assumes:** The optimal partition at t+1 is similar to the one at t, so C(t) is a good warm start for computing C(t+1).
+
+**How it fails:** Community structure in real social networks can undergo sudden phase transitions — two communities merge, one splits, a community dissolves. These transitions are exactly the cases where the incremental approach will fail badly: local re-optimization cannot discover that what was one community should now be two, because it never examines the full community interior.
+
+**Severity: Major | Impact: Correctness**
+
+*Research opportunity: Develop a structural change detector that flags when a community boundary has undergone a phase-transition-class event (e.g., a sudden drop in internal edge density, a spike in cut edges). This detector triggers aggressive re-expansion or full recomputation for the affected community. This turns a failure mode into a feature: the algorithm becomes self-diagnosing.*
+
+---
+
+### Assumption 7: Node flickering is a secondary concern
+
+**What it assumes:** Nodes that move between communities during incremental updates are evidence of correct tracking, not of instability.
+
+**How it fails:** Node flickering — where a node alternates between two communities across consecutive time steps — can be caused by the local update strategy landing on different local optima depending on update order. This produces downstream analysis artifacts (a node appears to "belong" to different communities at different times not because the graph changed meaningfully but because of algorithmic instability). This is a correctness issue, not a performance issue.
+
+**Severity: Moderate | Impact: Correctness, Publication Risk**
+
+*Research opportunity: Introduce a temporal smoothing mechanism (e.g., a node must achieve minimum dwell time before a community reassignment is accepted) and study the quality-stability tradeoff it induces. This is a novel design element with potential practical importance.*
+
+---
+
+## 5. TRADEOFF ANALYSIS
+
+### Tradeoff 1: Affected-region size vs quality
+
+The smaller the affected region, the faster each update, but the more likely the algorithm is to miss cross-community effects. This is not a linear tradeoff. Below a certain region size, quality degrades catastrophically because structural changes that span the boundary are ignored entirely. Above a certain size, you approach full recomputation and lose all efficiency benefit. The project needs to characterize this curve empirically and, ideally, provide conditions that predict where on the curve any given update falls. Without this characterization, the "adaptive" claim is a marketing term.
+
+---
+
+### Tradeoff 2: Modularity vs resolution limit
+
+Using modularity as both the optimization objective and the quality evaluation metric is circular. If the algorithm optimizes modularity and is evaluated on modularity, it will always look good — even if it is producing structurally wrong communities that simply happen to score well on modularity. The resolution limit means that on large graphs, high modularity scores can coexist with systematically missing small communities. This needs to be addressed by including at least one resolution-limit-immune metric (NMI against a ground truth, Surprise, or Conductance).
+
+---
+
+### Tradeoff 3: Local optimization vs global consistency
+
+Modularity is a global objective. It cannot be decomposed into independently optimizable local objectives without loss. When you locally re-optimize a subgraph, you are implicitly fixing the rest of the partition and optimizing a conditional modularity. This conditional optimum is not in general the same as the global optimum conditioned on the rest of the partition being correct. The gap between these two quantities is not bounded in the general case and could be large when the affected update touches a structurally important node (a hub, a bridge node, a community anchor).
+
+---
+
+### Tradeoff 4: Stability vs responsiveness
+
+A method that aggressively tracks every small structural change will produce temporally unstable communities — useful for detecting change points but poor for longitudinal analysis (tracking how community membership evolves). A method that is slow to update will lag behind true structural changes. The project needs to take an explicit position on which use case it is targeting and design the evaluation accordingly. Attempting to claim both without a formal responsiveness-stability tradeoff analysis will look unsophisticated to reviewers.
+
+---
+
+### Tradeoff 5: Simplicity vs novelty
+
+The simplest version of this project (BFS + local Louvain + periodic global) is implementable in a week. It is also almost certainly not publishable at any top-tier venue without the theoretical component. The theoretical component required to make this publishable is significantly harder to produce. This is a resource allocation tradeoff the team needs to be honest about: the implementation is easy; the research is not.
+
+---
+
+## 6. BASELINE AND EVALUATION REQUIREMENTS
+
+### Mandatory baselines:
+
+**Tier 1 (non-negotiable, absence is a desk rejection risk):**
+- Full Louvain recomputation from scratch (quality upper bound)
+- Full Leiden recomputation from scratch (quality upper bound, avoids Louvain-specific instability criticism)
+- Static partition held constant (quality lower bound, shows the cost of doing nothing)
+- At least one published incremental/dynamic method: recommend DynaMo, iLCD, or the streaming variant from TILES
+
+**Tier 2 (strongly recommended, absence is a significant reviewer objection):**
+- Label propagation (as a fast low-quality baseline)
+- A naive "delta-BFS with fixed radius" baseline with no adaptivity, to isolate the value of the adaptive component
+- GraphScope or equivalent streaming graph summarization method
+
+**What happens without Tier 1:** A reviewer will immediately ask "how does this compare to existing dynamic methods?" and the lack of comparison will be fatal. This is a Category A objection.
+
+---
+
+### Mandatory metrics:
+
+| Metric | Why mandatory |
+|---|---|
+| NMI vs full recompute | Direct quality gap measurement |
+| Adjusted Rand Index vs full recompute | Second quality measure, less sensitive to partition size |
+| Wall-clock time per update batch | Practical speedup claim |
+| Nodes reprocessed per update | Measures actual locality, separates from time |
+| Speedup ratio vs full recomputation | Summary headline metric |
+| Community churn rate | Measures flickering/instability |
+| Modularity Q | Required, but as a secondary metric not primary |
+| Memory overhead | Required for scalability claim |
+
+**Metrics to avoid as primary claims:** Modularity Q alone is insufficient and circular. NMI requires ground truth which synthetic graphs provide and real temporal graphs often don't. This means the evaluation design must use synthetic ground-truth graphs as the quality benchmark and real temporal graphs for the scalability and runtime benchmark.
+
+---
+
+### Recommended datasets:
+
+**Synthetic (quality evaluation, ground truth available):**
+- LFR benchmark with temporal extension (vary µ, mixing parameter, and community sizes over time)
+- Stochastic Block Model with time-varying block probabilities (controlled community merge/split events)
+- Dynamic planted partition model
+
+**Real temporal networks (scalability and runtime evaluation):**
+- SNAP CollegeMsg (temporal, small-medium, messaging network)
+- SNAP WikiTalk (temporal, large, edit network)
+- Enron email (temporal, community structure known from external labels)
+- DBLP co-authorship (temporal slices, citation community structure)
+- Reddit hyperlink network (temporal, large)
+- Facebook100 snapshots (if available)
+
+**What makes this evaluation convincing:** The synthetic graphs provide the ground truth needed for NMI/ARI. The real graphs provide the scalability demonstration. Running both is mandatory. Running only real graphs without ground truth and claiming quality preservation via modularity alone will be rejected.
+
+---
+
+### Recommended experiment structure:
+
+1. **Quality preservation study** (synthetic LFR/SBM): Show that NMI vs. full recomputation stays above 0.90 across a range of update rates and mixing parameters.
+2. **Speedup study** (real and synthetic): Show wall-clock speedup vs graph size (|V| ∈ {10³, 10⁴, 10⁵, 10⁶}) and vs update rate.
+3. **Locality study**: Show that the average fraction of nodes reprocessed per update is O(|Δ|^α) for α < 1, characterize α.
+4. **Ablation study**: Compare (a) fixed BFS radius, (b) adaptive radius without global correction, (c) full method. This isolates the value of each component.
+5. **Stress test**: Community merge/split events, hub node deletion, bursty update sequences. Show where the method fails and that global correction catches it.
+6. **Parameter sensitivity**: Vary global correction frequency, expansion criterion threshold, BFS starting radius. Show the method is not fragile to parameter choices.
+7. **Scalability curve**: Time vs |V| on power-law graphs to show sub-linear or near-linear scaling.
+
+---
+
+## 7. STRONGEST VERSION OF THE PROJECT
+
+**Title (suggested):** *When Does Locality Hold? A Formal Analysis of Incremental Community Detection under Structural Perturbations*
+
+**Core contribution:** A formal characterization of the conditions under which local re-optimization achieves a bounded approximation to globally optimal modularity, accompanied by an algorithm that detects when these conditions are violated and triggers targeted global correction.
+
+**What to keep:**
+- Adaptive affected-region expansion — formalized as a function of modularity null-model perturbation magnitude, not just BFS radius.
+- Quality-triggered global correction — formalized as an online estimate of the modularity gap with a principled threshold.
+- Local Louvain/Leiden re-optimization — kept as the workhorse but with explicit convergence analysis in the local subgraph setting.
+- Temporal stability metric — include community churn as a first-class metric alongside quality.
+
+**What to add:**
+- A formal model of "locality" for modularity: given an update that changes k edges, bound the maximum change in the optimal global modularity partition as a function of k and the graph's structural parameters.
+- A structural change detector for community-level phase transitions (merge, split, dissolution).
+- A secondary quality objective (Surprise or Conductance) to address the resolution limit.
+
+**What to remove:**
+- Fixed-period global correction (replace with quality-triggered).
+- BFS radius as a fixed parameter (replace with adaptive criterion derived from theory).
+- Modularity as the sole quality metric.
+
+**Target venue:** KDD, WWW, ICDM, or ACM Transactions on Knowledge Discovery from Data. This version would be competitive at a second-tier venue (CIKM, SDM) and would need the theoretical results to reach first-tier venues.
+
+---
+
+## 8. WEAKEST VERSION OF THE PROJECT
+
+**Description:** An implementation that runs BFS with radius r=2 around changed edges, applies local Louvain for some number of passes, and runs global Louvain every 100 updates. Evaluated on three temporal SNAP datasets with modularity Q as the sole quality metric. Compared only against full Louvain recomputation.
+
+**Why it fails:**
+
+- Without an existing dynamic method baseline, reviewers will assume the comparison is cherry-picked to avoid unfavorable results. This alone is grounds for rejection.
+- Modularity Q as the sole quality metric is circular — an algorithm that optimizes modularity will trivially score well on modularity.
+- Fixed BFS radius r=2 makes "adaptive" in the title a false claim, which reviewers will flag immediately.
+- No theoretical content means this is an engineering report, not a research paper. Engineering reports require extraordinary empirical results to be accepted at research venues, and this setup doesn't guarantee them.
+- No ablation means there is no evidence that the adaptive component is doing anything useful over a simpler baseline.
+
+**Summary failure mode:** This version would be desk-rejected at KDD/WWW and marginally rejected at CIKM/SDM. A reviewer would say: *"The authors present an engineering optimization of Louvain without theoretical justification, without comparison to existing dynamic methods, and with a circular evaluation design. The claimed novelty is not demonstrated."*
+
+---
+
+## 9. RESEARCH DIRECTIONS RANKED
+
+### Direction 1 (Strongest): Theoretical locality analysis with algorithm as corollary
+
+**Claim:** Under the modularity objective with a configuration-model null, a k-edge perturbation affects the globally optimal partition only if the perturbation magnitude exceeds a formally defined threshold that depends on k, the local community density, and the total graph edge count m. We derive this threshold, design an algorithm that uses it as the expansion criterion, and prove that the resulting partition achieves (1-ε) of globally optimal modularity with high probability under bounded-perturbation update models.
+
+**Why it wins:** Theory first. The algorithm follows from the theory. This is the structure that top venues reward. Even partial theoretical results (e.g., bounds under a restricted graph model) are publishable.
+
+**Risk:** Hard to produce. Modularity optimization is NP-hard and global, making formal approximation bounds difficult. Requires genuine mathematical work.
+
+---
+
+### Direction 2 (Moderate): Adaptive algorithm with comprehensive empirical study and principled heuristics
+
+**Claim:** We propose a formally defined adaptive expansion criterion based on modularity null-model sensitivity, a quality-triggered global correction policy, and a temporal stability mechanism. We provide no formal approximation bounds but conduct the most comprehensive empirical evaluation of incremental community detection to date, across six datasets, five baselines, and eight metrics, including an explicit characterization of the algorithm's failure envelope.
+
+**Why it's viable:** If the empirical study is genuinely comprehensive and includes proper baselines, this can be published at second-tier venues and possibly first-tier venues at conferences that value systems/empirical work. WWW, WSDM, and CIKM publish strong empirical papers without theory.
+
+**Risk:** Requires significant implementation effort across multiple baselines. Without theory, the paper lives or dies by experimental rigor. Any gap in the baselines or metrics is fatal.
+
+---
+
+### Direction 3 (Weakest): Algorithmic description with partial evaluation
+
+**Claim:** We present an incremental community detection algorithm and show it runs faster than full Louvain on three datasets with comparable modularity.
+
+**Why it fails:** Already described in Section 8. This is not a research contribution at any serious venue.
+
+**Recommendation:** Pursue Direction 1 if mathematical resources are available. Pursue Direction 2 if not, but only if the experimental rigor is genuinely high. Under no circumstances pursue Direction 3 as a publication target.
+
+---
+
+## 10. WHAT A REVIEWER WOULD SAY
+
+### Objection 1: "This is just Louvain with a BFS wrapper."
+
+**Why this hits hard:** It's essentially true of the weak version. BFS around changed edges + local Louvain is not a novel algorithmic idea.
+
+**Defense:** Show that the adaptive expansion criterion is formally defined and provably necessary (not just heuristically chosen), and that the quality-triggered global correction policy achieves better quality-efficiency tradeoffs than any existing method including iLCD and TILES. Directly compare against prior incremental methods. The defense requires existing dynamic baselines, which the weak version doesn't have.
+
+---
+
+### Objection 2: "The evaluation is circular — you optimize modularity and evaluate on modularity."
+
+**Why this hits hard:** It is a methodological error, not a stylistic preference. A circularity objection is hard to rebut without redesigning the evaluation.
+
+**Defense:** Add NMI and ARI against ground-truth partitions from synthetic graphs. Add Conductance as a quality metric independent of modularity. Explicitly acknowledge the resolution limit and report results on graphs with small communities where it is relevant.
+
+---
+
+### Objection 3: "Why was DynaMo / TILES / iLCD not included as a baseline?"
+
+**Why this hits hard:** Absence of existing dynamic baselines looks like the authors either don't know the literature or are hiding unfavorable comparisons. Both interpretations are fatal.
+
+**Defense:** Include at minimum two existing dynamic/incremental methods as baselines. If the proposed method is not strictly better on all metrics, provide a nuanced analysis of where it wins (locality exploitation, scalability) and where it trades off (may lose to methods that maintain richer data structures). Honest analysis is more credible than cherry-picked metrics.
+
+---
+
+### Objection 4: "The method degenerates to full recomputation on hard cases. What is the actual speedup?"
+
+**Why this hits hard:** If the global correction trigger fires frequently on realistic graphs, the efficiency benefit disappears. The paper needs to show what fraction of updates actually require global correction on each dataset.
+
+**Defense:** Report the global correction trigger rate per dataset explicitly. Show that on typical real-world update distributions, the trigger fires rarely (e.g., <5% of update batches). This requires running the experiment and reporting the number honestly. If the trigger fires 30% of the time, acknowledge it and explain why the affected datasets are structurally unusual.
+
+---
+
+### Objection 5: "The adaptive expansion is not well-defined. What is the formal criterion?"
+
+**Why this hits hard:** Any paper that uses the word "adaptive" without a formal definition will be asked for one. If the answer is "we expand if local modularity doesn't converge in K passes," that is a vague heuristic, not an adaptive criterion.
+
+**Defense:** Define the expansion criterion as a function with explicit inputs (modularity change per iteration, boundary node degree, community internal density) and a theoretically or empirically justified threshold. Show in the ablation that this criterion outperforms both fixed-radius and naive infinite-expansion strategies.
+
+---
+
+## 11. FINAL RECOMMENDATION
+
+**Proceed: Yes, with significant reframing.**
+
+**Most defensible research angle:** Reframe the project as a formal study of locality conditions for modularity-based community detection under structural perturbations, with the incremental algorithm as the practical realization of the theory. The central research question becomes: *under what conditions on the update and the graph structure is local re-optimization sufficient to approximate global modularity optimization?* The answer to this question — even a partial answer — is a genuine scientific contribution that does not exist in the literature in explicit form.
+
+**Minimum viable version that is still meaningful:** Direction 2 — a comprehensive empirical study with formally defined (even if not theoretically proved) adaptive criteria, at least two dynamic method baselines, NMI/ARI evaluation on synthetic ground-truth graphs, and an explicit ablation study isolating the value of each component. This version is publishable at CIKM or SDM and, if the experimental results are strong, possibly at WWW or WSDM. It requires honest acknowledgment of the resolution limit and the global correction trigger rate.
+
+**What would make this paper great rather than merely acceptable:** A proof, even a restricted one, that local re-optimization achieves a bounded quality loss under a specific update model. Even something as limited as "if the update changes at most k edges and the minimum community size is ω(k), then the modularity loss from local-only optimization is at most O(k/m)" would transform this from an empirical systems paper into a contribution that belongs in a research-track venue at KDD or NeurIPS.
+
+---
+
+---
+
+# META REQUIREMENT: FLAWS AS RESEARCH OPPORTUNITIES
+
+---
+
+**Flaw 1: Affected-region definition is informal (BFS radius)**
+
+*Why it matters:* Without a formal definition, the "adaptive" claim cannot be validated, replicated, or improved upon. It is the methodological foundation of the entire algorithm.
+
+*Research opportunity revealed:* Develop a formal sensitivity analysis for modularity's null model. For a given edge addition (u, v), derive the maximum change in the modularity contribution of any node w as a function of the graph distance d(u, w) and the degree sequences. This gives a principled upper bound on how far the "effect" of an edge change can propagate. This is a standalone theoretical result with potential impact beyond this project.
+
+*How the project becomes stronger:* The adaptive expansion radius becomes the smallest radius r such that all nodes beyond r have modularity sensitivity below a threshold ε. This is formally justified, reproducible, and dataset-independent.
+
+---
+
+**Flaw 2: Global correction is periodic, not principled**
+
+*Why it matters:* A fixed period K is almost surely wrong for any realistic graph. It either over-triggers (wasting the incremental benefit) or under-triggers (allowing drift to accumulate silently). This makes the method unreliable in deployment.
+
+*Research opportunity revealed:* Develop an online modularity gap estimator — a lightweight computation that maintains a running approximation of |Q(C_incremental) − Q(C_optimal)| without recomputing C_optimal. If this estimate can be computed in O(1) or O(|affected region|) per update, it enables principled adaptive triggering. This is a novel data structure / algorithm design problem.
+
+*How the project becomes stronger:* The correction policy becomes a principled adaptive control rule rather than a schedule, and the paper gains a second algorithmic contribution beyond the expansion criterion.
+
+---
+
+**Flaw 3: Modularity resolution limit is ignored**
+
+*Why it matters:* If the algorithm optimizes modularity on a large graph, it will systematically miss small communities. This is not a minor error; it is a fundamental limitation that undermines any quality claims made on graphs with fine-grained community structure.
+
+*Research opportunity revealed:* Study incremental optimization of Surprise or Significance (Aldecoa & Marín 2011, Traag et al. 2015) under structural updates. These metrics are resolution-limit-free and their incremental update properties are almost completely unstudied. Being the first to formalize incremental Surprise optimization is a potentially high-impact contribution.
+
+*How the project becomes stronger:* The project becomes the first systematic study of resolution-limit-immune objectives under incremental graph updates, a framing that is both novel and practically important.
+
+---
+
+**Flaw 4: Node flickering is unaddressed**
+
+*Why it matters:* If nodes alternate between communities across updates due to algorithmic instability rather than graph changes, temporal analyses built on the community assignments will be corrupted. This is a correctness failure in the system's intended use case.
+
+*Research opportunity revealed:* Introduce and study the concept of community assignment stability as a first-class metric. Define a formal stability criterion (e.g., minimum dwell time before reassignment, confidence threshold for reassignment). Study the quality-stability Pareto frontier — characterize how much quality you must trade to achieve a given stability level. This is a novel contribution to the temporal community detection literature.
+
+*How the project becomes stronger:* The paper gains a new metric and a new design dimension, and addresses a practical concern that users of temporal community detection tools actually care about.
+
+---
+
+**Flaw 5: No characterization of structural phase transitions**
+
+*Why it matters:* Community merge, split, and dissolution events are exactly the cases where the incremental method will fail, and they are also exactly the cases that users most care about detecting. A method that silently fails on the most important events is worse than one that fails loudly.
+
+*Research opportunity revealed:* Develop a structural change detector that operates on the community-level data structure and flags events that exceed the local optimization assumption. This detector could be based on sudden changes in community internal density, external edge fraction, or modularity contribution. The detector is a standalone contribution — a community-level anomaly detection mechanism for temporal graphs.
+
+*How the project becomes stronger:* The method becomes self-diagnosing. When it detects a phase transition, it triggers focused recomputation for the affected communities and reports the event to the user. This turns a failure mode into a feature.
+
+---
+
+---
+
+# NEW INSIGHTS DISCOVERED
+
+1. **The null model perturbation problem is the true formal core of the project.** Modularity's null model depends on global degree statistics (total edge count m). Every edge insertion globally perturbs the null model. The affected-region definition needs to account for this, and bounding the magnitude of this global perturbation as a function of local update size is the key theoretical contribution.
+
+2. **The quality-stability tradeoff is underexplored.** The literature focuses on quality vs speed. Quality vs temporal stability (node flicker) is a distinct and practically important tradeoff that this project could formally introduce.
+
+3. **Surprise as an objective for incremental detection is an open problem.** Resolution-limit-free objectives (Surprise, Significance) have been studied in static settings but their incremental update properties are essentially unstudied. This is a green field research area.
+
+4. **Community-level structural change detection is a missing primitive.** The field has anomaly detection on graphs and change-point detection on graph statistics, but fine-grained community-level phase transition detection is absent. This project could introduce it.
+
+5. **The trigger policy for global correction is a separate research problem** from the local optimization strategy. Treating them as one problem obscures the fact that the trigger policy has its own correctness requirements that are independent of the local optimization quality.
+
+---
+
+# ASSUMPTIONS INVALIDATED
+
+| Assumption | Invalidation Mechanism | Evidence |
+|---|---|---|
+| Updates are structurally local | Bursty social events, hub node changes, viral propagation all create non-local structural effects | Empirically documented in temporal network literature |
+| BFS radius captures affected region | Modularity null model is globally defined; no BFS radius fully captures null model perturbation | Formal property of the modularity objective function |
+| Modularity faithfully represents quality | Resolution limit: cannot detect communities smaller than √(2m) nodes | Fortunato & Barthélemy 2007 — proven result |
+| Periodic correction prevents drift | Optimal correction period depends on update distribution, which is non-stationary on real networks | Structural property of non-stationary processes |
+| Local Louvain converges to global optimum | Modularity landscape is rugged; local optima are dense | NP-hardness of modularity optimization |
+| Community boundaries are stable | Phase transitions (merge, split) can occur after any update if it crosses a structural threshold | Observed in dynamic community detection literature |
+
+---
+
+# RESEARCH OPPORTUNITIES CREATED
+
+1. **Modularity null-model sensitivity analysis under edge perturbations** — formal mathematical result, potentially standalone publication.
+
+2. **Online modularity gap estimator** — data structure / streaming algorithm contribution.
+
+3. **Incremental Surprise/Significance optimization** — first-mover opportunity in a green field.
+
+4. **Quality-stability Pareto frontier for temporal community detection** — novel metric and tradeoff analysis.
+
+5. **Community-level structural phase transition detector** — anomaly detection application with standalone practical value.
+
+6. **Formal characterization of the locality assumption** — theoretical result establishing when local re-optimization is sufficient, with explicit conditions and bounds.
+
+7. **Adaptive correction trigger design** — control-theoretic framing of the global correction problem.
+
+---
+
+---
+
+# OPUS HANDOFF PACKAGE
+
+---
+
+### 1. Questions Opus Must Answer
+
+- Does a formal bound exist or can one be derived for modularity degradation as a function of the number and location of edge insertions, given a fixed starting partition C(t)?
+- What is the state of the art in bounding the distance between the global modularity optimum at time t and time t+1 as a function of the update set Δ(t)?
+- Has any paper formalized the concept of "locality" for modularity-based community detection? If so, what conditions do they use?
+- Does the TILES or DynaMo framework include a quality-triggered global correction mechanism? If so, how is the trigger defined?
+- Is the incremental optimization of Surprise or Significance studied anywhere in the literature? If not, what would be required to formalize it?
+- What is the current best-known approximation ratio for modularity optimization on dynamic graphs?
+- Has anyone formally studied the community stability-quality tradeoff in temporal community detection?
+- What are the known conditions under which Leiden outperforms Louvain on incremental updates?
+
+---
+
+### 2. Areas Requiring Literature Review
+
+- **Dynamic and incremental community detection:** Comprehensive review of iLCD, TILES, DynaMo, QCA, streaming Louvain variants, GraphScope, GreedyRLFD — with specific attention to their affected-region strategies and update triggers.
+- **Modularity theory and limitations:** Resolution limit (Fortunato & Barthélemy 2007), modularity maximization complexity, approximation algorithms, modularity landscape characterization.
+- **Alternative quality metrics:** Surprise (Aldecoa & Marín 2011), Significance (Traag et al. 2015), Conductance, internal density — especially their sensitivity to graph perturbations.
+- **Temporal network analysis:** Survey of temporal community detection challenges, community stability metrics, change-point detection in graphs.
+- **Online / streaming algorithms for graph problems:** Streaming spectral methods, online clustering bounds, incremental graph partitioning.
+- **Perturbation theory for graph partitioning:** Spectral perturbation bounds, Davis-Kahan theorem applications to graph clustering.
+- **Modularity approximation theory:** What is known about the approximation ratio of Louvain/Leiden vs optimal modularity?
+
+---
+
+### 3. Areas Requiring Mathematical Formalization
+
+- **Null model perturbation bound:** For a graph G with m edges and a k-edge update Δ, derive an upper bound on |Q(C*, G) − Q(C*, G+Δ)| as a function of k, m, and the structural properties of the affected region.
+- **Formal locality condition:** Define a formal condition L(G, Δ, ε) that is true if and only if local re-optimization of the affected region achieves modularity within ε of the global optimum. Characterize the conditions under which L holds.
+- **Adaptive expansion criterion:** Define the minimal affected region R* such that optimizing C over R* (holding the rest fixed) achieves modularity within ε of fully reoptimizing C. Derive the relationship between |R*| and the structural properties of Δ.
+- **Online modularity gap estimator:** Define a computable approximation G(t) of |Q(C_incremental(t)) − Q(C_optimal(t))| that can be updated in O(|Δ|) per step. Derive its approximation quality.
+- **Community stability metric formalization:** Define a formal stability score S(C(t), C(t+1)) that captures assignment consistency beyond NMI, and characterize the quality-stability tradeoff curve.
+
+---
+
+### 4. Areas Requiring Algorithmic Innovation
+
+- **Adaptive expansion criterion implementation:** An algorithm that computes the minimal expansion needed given the null model perturbation bound, rather than using BFS with a fixed radius.
+- **Quality-triggered global correction policy:** An online algorithm that maintains a running estimate of modularity gap and triggers global correction when the estimate exceeds a threshold.
+- **Community-level phase transition detector:** An efficient algorithm that detects when a community has undergone a merge, split, or dissolution event during the incremental update process.
+- **Incremental Surprise optimization:** If the literature review confirms no prior work, an algorithm for incrementally updating Surprise-optimal partitions under edge insertions and deletions.
+- **Temporal smoothing mechanism:** An algorithm that enforces minimum dwell time before accepting community reassignments, with a formal analysis of its effect on quality and stability.
+
+---
+
+### 5. Areas Requiring Architectural Investigation
+
+- **Data structure for incremental community maintenance:** What data structure most efficiently supports the operations: affected-region lookup, local modularity recomputation, modularity gap tracking, community-level statistics maintenance? Candidate structures: hierarchical community trees (as used in Leiden), auxiliary node-community maps with lazy updates, priority queues over community quality degradation.
+- **Parallelization opportunities:** Can multiple affected regions from simultaneous updates be processed in parallel? Under what conditions are affected regions disjoint, allowing embarrassingly parallel updates?
+- **Memory overhead characterization:** What is the memory cost of maintaining the auxiliary data structures required for online modularity gap estimation and community-level change detection?
+- **Batch update handling:** Should the algorithm process updates one at a time or in batches? How does batch size interact with the affected-region definition?
+
+---
+
+### 6. Areas Requiring Experimental Validation
+
+- **Null model perturbation bound validation:** Empirically measure the actual modularity degradation from local-only updates on LFR and SBM graphs across a range of k values. Check whether a theoretical bound, if derived, is tight or loose.
+- **Locality assumption empirical scope:** On real temporal networks (CollegeMsg, WikiTalk, DBLP), measure what fraction of updates are "local" in the sense that local re-optimization achieves NMI > 0.95 vs full recomputation.
+- **Global correction trigger rate measurement:** On each dataset, measure how frequently the quality-triggered correction fires. Report this as the "correction rate" and characterize its relationship to graph properties.
+- **Adaptive vs. fixed radius ablation:** Systematically compare fixed BFS radii (1, 2, 3, 5, 10) against the adaptive expansion criterion. Quantify the marginal benefit of adaptivity as a function of update type.
+- **Community stability measurement:** Measure node flickering rates across all baselines and the proposed method. Quantify the stability-quality tradeoff empirically.
+- **Scalability curve:** Measure update time vs |V| on synthetic power-law graphs from 10³ to 10⁷ nodes. Confirm sub-linear or near-linear scaling.
+- **Phase transition stress test:** Construct synthetic graphs where two communities merge or one splits at a known timestep. Measure how quickly the algorithm detects and recovers from the structural change.
+
+---
+
+### 7. Most Promising Publication Direction
+
+**"A Formal Analysis of Locality in Modularity-Based Community Detection with Applications to Incremental Graph Maintenance"** — submitted to KDD, WWW, or SIGMOD.
+
+The core contribution is the null model perturbation bound and the derived locality condition. The algorithm is the practical realization. The empirical evaluation validates the bound tightness and demonstrates practical efficiency gains. This framing has theoretical depth, algorithmic novelty, and practical motivation — the combination that top venues reward. Even if the theory only covers a restricted graph model (e.g., sparse random graphs with bounded degree), the result is publishable and lays groundwork for follow-up work.
+
+---
+
+### 8. Most Dangerous Publication Risk
+
+**The prior work problem.** The most dangerous scenario is that a careful literature review of TILES, DynaMo, iLCD, and their follow-up papers reveals that the adaptive expansion criterion or the quality-triggered correction policy has already been proposed, even informally, in a prior paper. If the "novelty" of this project turns out to be a rephrasing of techniques from a 2015 paper, the entire contribution collapses. The literature review described above must be completed before any implementation begins, and before any publication claim is made. This is the single highest-priority risk mitigation action.
+
+---
+
+---
+
+# SOTA ASSESSMENT
+
+**Classification: B — Incremental Improvement (borderline C — Moderate Contribution)**
+
+**Reasoning:**
+
+The general problem of incremental/dynamic community detection is well-studied. The specific combination of adaptive expansion + quality-triggered correction is not clearly present in the literature in formal form, which creates a potential gap. However, the informal version of this idea — "do local updates and occasionally rerun global" — is present in multiple papers and is likely an implicit design choice in any production-grade implementation of a dynamic community detection system.
+
+The path to a higher classification (C or D) requires one of:
+1. A formal theoretical result that does not exist in the literature (the null model perturbation bound).
+2. A comprehensive empirical study that is significantly more rigorous than prior work (multiple baselines, multiple metrics, multiple datasets, ablation, failure characterization).
+3. An entirely new objective function (incremental Surprise optimization) that opens a new research direction.
+
+Without one of these three, the contribution remains solidly B — a real but incremental improvement over existing work, publishable at second-tier venues but not competitive at KDD, WWW, or NeurIPS.
+
+| Path | SOTA Classification | Target Venue |
+|---|---|---|
+| Theory only (null model bound) | C–D | KDD, WWW, SIGMOD |
+| Comprehensive empirical only | B–C | WWW, WSDM, CIKM |
+| Incremental Surprise optimization | C–D | KDD, NeurIPS, ICLR |
+| BFS + local Louvain + periodic global | A (solved) | Not publishable |

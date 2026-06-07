@@ -1,0 +1,555 @@
+Now I have everything. Let me conduct the full hostile review.
+
+---
+
+# RESEARCH AND ARCHITECTURE RISK DOSSIER
+## Sonnet Review #2 — ISL: Incremental Surprise-Leiden
+
+---
+
+## 1. EXECUTIVE VERDICT
+
+**CONDITIONAL: Do not proceed to full implementation. Proceed to targeted validation experiments first.**
+
+The project has undergone a genuine intellectual pivot from the weak original framing (adaptive BFS + local Louvain) to something with real novelty potential (incremental Surprise optimization). That pivot is the right call. The Incremental Surprise-Leiden algorithm (ISL) is, to the best of the literature search conducted in Phase 1, the first such system, and that first-mover status is a defensible contribution.
+
+However, the project currently rests on **three unvalidated assumptions** that are collectively strong enough to invalidate the paper if they fail. None of them have been empirically checked. All of them can be checked cheaply, in one or two days of computational work, BEFORE 8 weeks of full implementation. The failure to validate these assumptions before committing to implementation is the single greatest risk in the current design.
+
+Beyond the core risks, there are **five significant cross-document contradictions** between Phase 2 and Phase 3, and at least **two conceptual errors** in the formalization that require correction before any code is written.
+
+---
+
+## 2. MAJOR STRENGTHS
+
+**Strength 1: The novelty claim is real.**
+Incremental Surprise optimization does not exist in the literature. The Phase 1 search confirmed this. The asymptotic approximation (Traag et al. 2015) provides a mathematical bridge that makes incremental ΔS computation tractable. This is a genuine first-mover position.
+
+**Strength 2: The differentiation from HIT-Leiden is clean.**
+The paper can honestly claim it is not competing on speed but on a different quality axis: resolution-limit-free community detection. This framing is defensible and does not require ISL to outperform HIT-Leiden on wall-clock time.
+
+**Strength 3: The ΔS gain formula is mathematically sound.**
+The derivation in Phase 2 Section 3.1 is correct. Moving node v from A to B changes p by e_B(v) − e_A(v) and changes M by n_B − n_A + 1, with m and N unchanged. The O(d_v) computation follows. This is the load-bearing primitive and it holds.
+
+**Strength 4: The architecture-phase correction of community closure was correct.**
+The Phase 3 decision to remove community closure is mathematically justified. The ΔS gain for a node far from the perturbation does not require including its entire community in the affected set. Phase 3 was right to remove this and Phase 2 was wrong to include it.
+
+**Strength 5: leidenalg provides the static baseline for free.**
+`SurpriseVertexPartition` in leidenalg eliminates the need to build a custom static Surprise optimizer. This is a significant implementation simplification that was correctly identified in Phase 3.
+
+---
+
+## 3. MAJOR WEAKNESSES
+
+1. **The asymptotic approximation is least accurate precisely where ISL's advantage is claimed.**
+2. **Surprise's over-partitioning bias has no preventive mechanism — only a passive diagnostic.**
+3. **The Surprise-gap monitor as specified in Phase 3 is not implementable — "relative drift" is undefined.**
+4. **Surprise non-additivity makes the local optimization order-dependent in ways not acknowledged.**
+5. **Five substantive contradictions exist between Phase 2 and Phase 3 documents.**
+6. **HIT-Leiden integration strategy will not satisfy reviewers.**
+7. **The warm-start assumption — that P(t) is a good initialization for optimizing Surprise at t+1 — is completely unvalidated.**
+8. **The "ISL = Leiden + different objective" objection is not adequately pre-empted.**
+
+---
+
+## 4. RESEARCH AUDIT
+
+### 4.1 Problem Formulation
+
+The formal problem statement in Phase 2 Section 2 is mostly sound. The graph model (undirected, unweighted, batch updates) is well-defined. The success criteria are stated precisely.
+
+**Issue:** The sparsity assumption in Section 6 ("the asymptotic Surprise approximation is valid in the sparse regime") is stated but not quantified. What is the operational definition of "sparse" for this approximation? The Traag 2015 paper gives conditions; those conditions need to be explicitly stated and checked against all target datasets.
+
+**Severity: Moderate | Impact: Correctness**
+
+### 4.2 The Central Contradiction: Asymptotic Approximation vs. Small Communities
+
+This is the most dangerous flaw in the project and it appears nowhere in any of the three phases.
+
+The asymptotic Surprise approximation S ≈ m · D_KL(q ∥ ⟨q⟩) is derived from the hypergeometric distribution using a large-n approximation. The approximation accuracy improves as community sizes grow. It is **least accurate for small communities.**
+
+ISL's primary claim is that it detects **small communities** that modularity misses (communities smaller than √(2m) nodes — exactly the hard cases where ISL claims superiority).
+
+Therefore: ISL optimizes an approximation of Surprise that is **systematically least accurate in the operating regime where ISL claims to provide the most benefit.** The resolution-limit advantage is claimed precisely where the mathematical foundation is weakest.
+
+This is not a minor technical footnote. If ISL optimizes an inaccurate approximation for small communities, the "hero experiment" — showing ISL finding small communities that Leiden misses — may reflect the properties of the approximation, not genuine community detection. The small communities found by ISL might be correct, or they might be artifacts of the approximation error. The paper cannot distinguish between these cases without computing exact Surprise.
+
+**Severity: Critical | Impact: Correctness, Novelty, Publication Risk**
+
+*What must happen before implementation:* Empirically validate the approximation error for community sizes relevant to the experiments (e.g., sizes 50, 100, 200, 500, 1000) on LFR graphs. Compute both exact Surprise and asymptotic Surprise and compare. If the approximation error is below 1% for communities ≥ 100 nodes, this is survivable. If it's large for the small-community regime, the paper must either (a) use exact Surprise for small communities or (b) reframe the claim.
+
+### 4.3 The Non-Additivity Problem
+
+Phase 2 acknowledges that Surprise depends on global q and ⟨q⟩ rather than per-community terms. It treats this as an implementation challenge (maintain global counters). What is NOT acknowledged are the optimization consequences:
+
+In modularity optimization, ΔQ for moving node v can be computed while treating the rest of the graph as fixed. The gain is truly local: only the community memberships of v's neighbors matter. This is what makes Louvain-style optimization sensible.
+
+In Surprise optimization, ΔS for moving node v depends on global q = p/m and ⟨q⟩ = M/N. When another node w is moved (improving S globally), q and ⟨q⟩ change, making the previously computed ΔS for v stale. Since every move changes the global landscape, the local optimization is actually a **sequential global optimization with greedy order dependence.**
+
+This means:
+- The order in which nodes in S₂ are processed determines the final partition.
+- A random ordering (as specified in Phase 2) produces a different result from a degree-ordered or gain-ordered traversal.
+- The convergence of the local phase is not guaranteed in the same way as modularity-based Louvain (where convergence follows from ΔQ > 0 and the bounded objective).
+
+Actually, convergence IS guaranteed by the same argument — each accepted move strictly increases S, S is bounded above, so the algorithm terminates. But the termination point is strongly order-dependent, and the quality of that termination point varies across orderings.
+
+This is not a fatal flaw but it requires:
+1. Explicit acknowledgment in the paper
+2. Multiple random orderings per batch to reduce order-dependence (and reporting variance)
+3. A claim that is scoped to "we find a local optimum of S" rather than "we find a near-optimal S partition"
+
+**Severity: Major | Impact: Correctness, Novelty**
+
+### 4.4 Warm-Start Assumption
+
+Neither Phase 1, 2, nor 3 explicitly validates the assumption that P(t) is a good warm start for optimizing Surprise at t+1.
+
+For this assumption to hold, the Surprise landscape must have the property that the optimal partition at t+1 is "close" (in some partition distance metric) to the optimal partition at t, when the graph change is small. This is the dynamic community detection locality assumption, now applied to Surprise.
+
+But Surprise's known properties — extreme degeneracy (many near-optimal partitions), over-partitioning tendency — suggest the landscape may be particularly volatile. If the optimal partition at t+1 is at a very different location in partition space from P(t), the warm-start provides no benefit and the local moves cannot reach it.
+
+This is not a theoretical question; it's an empirical one that can be tested cheaply: on LFR benchmarks with controlled edge insertions, measure the partition distance between P*(t) and P*(t+1) (both computed by full static Surprise optimization). If this distance is small and proportional to the update size, the warm-start assumption holds. If it's large and unpredictable, ISL's efficiency advantage disappears.
+
+**Severity: Major | Impact: Correctness, Novelty, Publication Risk**
+
+---
+
+## 5. ALGORITHM AUDIT
+
+### 5.1 The Global Landscape Shift Problem
+
+Phase 3 correctly removes community closure from the affected set, arguing that "ΔS for a node v only depends on e_A(v), e_B(v) and global (q, ⟨q⟩)." This is true for the COMPUTATION of ΔS given the current state. But it misses the optimization implication:
+
+When an edge (u, w) is inserted, q and ⟨q⟩ change globally. A node z far from u and w — not in S₁, not in the 1-hop expansion — now has a different ΔS gain for moving to any neighboring community. This gain change is small (O(1/m)), but it is nonzero. Under the ISL strategy, z will never be considered for re-evaluation in this batch. ISL therefore produces a suboptimal partition for z by design.
+
+For most batches, this error is negligible. But it accumulates over time. After 1000 batches of k=50 edge insertions each, the cumulative landscape shift at distant nodes may be significant. The gap monitor is supposed to catch this, but the monitor is based on comparing S_incremental against a trajectory — it cannot detect whether the quality degradation is from the gap monitor's reference point is due to accumulated distant-node errors or genuine community drift.
+
+This is a fundamental limitation of the affected-set strategy for any non-additive objective, and it is not acknowledged anywhere.
+
+**Severity: Major | Impact: Correctness**
+
+### 5.2 The Connectivity Check and "Leiden" in the Name
+
+Phase 3 drops multi-level aggregation while retaining the connectivity check. This creates a naming problem: ISL stands for "Incremental Surprise-Leiden." Leiden's theoretical guarantees — specifically that communities are internally well-connected — come from the combination of the local move phase AND the refinement phase AND the aggregation phase. Without aggregation, ISL is closer to "Incremental Surprise-Louvain" with a connectivity check.
+
+This matters for novelty claims. The Leiden algorithm paper (Traag et al. 2019) specifically demonstrates that Louvain can produce disconnected communities that Leiden fixes via its multi-level structure. If ISL drops the aggregation phase, it may produce poorly-connected communities in exactly the adversarial cases where Louvain fails.
+
+The connectivity check (igraph subgraph + clusters) can DETECT after-the-fact disconnection, but it cannot PREVENT the suboptimal merging decisions that lead to poorly-connected communities in the first place. Leiden's aggregation phase prevents the problem; the connectivity check only detects its symptoms.
+
+**Severity: Moderate | Impact: Correctness, Novelty**
+
+### 5.3 The Surprise-Gap Monitor Specification
+
+Phase 2 specifies the gap monitor as: "Trigger when |S_full(t₀) − S_incremental(t)| > ε · S_full(t₀)" where S_full(t₀) is a cached value from the last full recomputation.
+
+Phase 3 correctly identifies this as broken (cached value goes stale) and replaces it with: "track the trajectory of S_incremental over time; trigger if S drops by more than ε relative to a moving average."
+
+But Phase 3's replacement is not implementable as specified. The "relative drift" monitor has these unanswered questions:
+
+1. What window size for the moving average? (Too short: noisy; too long: slow to respond to genuine drift)
+2. What if S naturally decreases because edges are being deleted (the graph is getting sparser and communities are dissolving)? This is correct behavior, not drift.
+3. What if S increases but the partition quality (NMI vs. ground truth) is deteriorating due to over-partitioning? High S does not guarantee good partition quality.
+4. Should the trigger be on the RATE of S change, the ABSOLUTE level of S, or the DISCREPANCY from some reference?
+
+A concrete, implementable specification: maintain a "last-full-recompute" partition P_ref and compute NMI(P_incremental, P_ref) after every B batches. Trigger when NMI drops below threshold δ. This is more expensive (O(n) per NMI computation) but at least interpretable.
+
+Alternatively: maintain a running window of S values. Trigger when the current S is more than ε standard deviations below the mean of the last W batches. This is robust to monotonic trends.
+
+Neither is specified. Jules cannot implement "relative drift monitor" without one of these being locked down.
+
+**Severity: Major | Impact: Correctness, Implementation**
+
+### 5.4 ΔM Formula Boundary Case
+
+The formula ΔM = n_B − n_A + 1 assumes node v is moving from community A to community B and that v is currently IN A (not already in B, not in a singleton community, not in a community of size 1).
+
+Edge case: If n_A = 1, then ΔM = n_B − 1 + 1 = n_B. The formula holds. But the community of size 1 will no longer exist after the move — community label A should be cleaned up. This bookkeeping detail is not specified.
+
+Edge case: What if the best move is to a NEW singleton community (v alone)? Then n_B = 0, ΔM = 0 − n_A + 1 = 1 − n_A, which is negative for n_A > 1. This is handled correctly by the formula, but the community creation case needs to be specified.
+
+**Severity: Minor | Impact: Implementation**
+
+---
+
+## 6. ARCHITECTURE AUDIT
+
+### 6.1 Five Cross-Document Contradictions
+
+| # | Phase 2 Says | Phase 3 Says | Resolution |
+|---|---|---|---|
+| 1 | Community closure is in Stage 1 | Community closure is unnecessary and harmful; replaced with edge-proximity expansion | Phase 3 is correct; Phase 2's Stage 1 specification is invalid |
+| 2 | Surprise-gap monitor compares against cached S_full(t₀) | Replace with relative drift monitor over moving average | Phase 3 identifies the problem; the replacement is underspecified |
+| 3 | Leiden refinement sub-phase included (well-connectedness check) | Multi-level aggregation removed; single-level local moves only | Partial: refinement retained, aggregation dropped; the relationship between these is unresolved |
+| 4 | Adaptive expansion criterion based on gain magnitude at boundary | Start with fixed 1-hop; add adaptive expansion as ablation variant later | Deferral to implementation; a key novelty claim is deferred |
+| 5 | Surprise-gap monitor based on relative threshold ε = 0.05 | Use "relative drift" over moving average | Different definitions of "relative"; these are not the same trigger |
+
+These contradictions must be resolved before Jules begins coding. A single specification document must be produced that supersedes both Phase 2 and Phase 3 on each of these five points.
+
+**Severity: Major | Impact: Implementation, Correctness**
+
+### 6.2 HIT-Leiden Baseline Strategy is Publication-Fatal
+
+Phase 3 specifies: "Use published results for comparison if direct integration fails; implement simplified version if possible."
+
+This will not survive peer review. The reasons:
+
+1. Published HIT-Leiden results are on hardware and graph instances that differ from ISL's experiments. Any speed comparison is invalid across environments.
+2. Published HIT-Leiden results may use different update semantics (batch size, edge vs. node updates, initialization strategy).
+3. If ISL claims quality superiority over HIT-Leiden (finding small communities), the comparison requires running HIT-Leiden on the SAME graphs and SAME streams ISL uses. A paper figure that shows "ISL NMI = 0.91, HIT-Leiden NMI = 0.72 (from Lin et al. 2026)" would be rejected.
+
+The clean solution: Don't claim speed comparison against HIT-Leiden. Claim quality comparison on small-community benchmark graphs. For this, you need to run Leiden (static) on the same graphs — which leidenalg provides. HIT-Leiden is static Leiden applied incrementally, so if ISL achieves higher NMI than static Leiden on small communities, that IS the evidence against HIT-Leiden by transitivity.
+
+This reframing — "ISL vs. static Leiden quality on small communities" rather than "ISL vs. HIT-Leiden directly" — solves the integration problem and is actually a cleaner argument.
+
+**Severity: Major | Impact: Publication Risk, Evaluation**
+
+### 6.3 Python Performance Ceiling vs. Dataset Scale
+
+Phase 3 states: "Python + igraph is sufficient for graphs up to ~10⁵ nodes."
+
+Phase 3 also lists as real datasets: WikiTalk (~2.4M nodes), DBLP (~1.3M nodes), Reddit (large).
+
+This is a direct contradiction. The system cannot process these datasets in Python. Phase 3's mitigation — "sample-based evaluation" — is mentioned once, in a scalability note, without any specification of what "sampling" means in the context of temporal community detection. You cannot sample a temporal graph without fundamentally changing its community structure.
+
+The honest resolution: ISL's Python prototype targets graphs up to 10⁵ nodes. The paper must be honest about this. The evaluation should use the full set of datasets but clearly partition them into "experiments run directly" (small-medium, up to 10⁵) and "experiments where published baseline numbers are used or only static comparisons are made" (large). Any claim about scalability must come from the theoretical complexity analysis, not empirical results on large graphs.
+
+**Severity: Major | Impact: Scalability, Publication Risk**
+
+### 6.4 Baseline Fairness: DynaMo Re-implementation
+
+The "simplified DynaMo re-implementation" is mentioned twice across documents without specification of what is simplified. If DynaMo's core is its adaptive affected-region detection and local modularity re-optimization, a "simplified" version missing either component is not DynaMo — it's a straw man. A reviewer will ask to see the code or a description of the simplification and will question any comparison that uses it.
+
+Options: (1) Use DynaMo's published code if available; (2) clearly specify exactly what ISL's DynaMo baseline implements, including which simplifications were made and why; (3) replace DynaMo with a different fully-implemented baseline (e.g., fixed-radius BFS + static Leiden, which Phase 3 also mentions).
+
+**Severity: Moderate | Impact: Evaluation, Publication Risk**
+
+---
+
+## 7. EVALUATION AUDIT
+
+### 7.1 Evaluation Circularity Partially Addressed, Partially Not
+
+Phase 3 correctly identifies that using Surprise as both the objective and the primary quality metric is circular. It includes NMI against ground truth for synthetic datasets.
+
+However, the metric table lists "Surprise S" as a primary quality metric alongside NMI. If a reviewer asks: "Of course ISL scores highest on Surprise — it optimizes Surprise," the paper needs to immediately point to NMI against ground truth as the non-circular evidence. But the paper's claim structure currently puts Surprise and NMI at equal weight. The correct hierarchy: NMI against ground truth is the primary evidence; Surprise is a secondary diagnostic showing ISL maintains its optimization objective.
+
+### 7.2 The Resolution-Limit Hero Experiment Has a Structural Flaw
+
+Phase 3 describes the "hero figure" as: "Side-by-side community assignments from ISL vs. static Leiden on a graph with small planted communities. ISL finds them; Leiden merges them."
+
+This demonstrates: ISL (incremental Surprise) > static Leiden (incremental modularity, effectively) on small-community graphs. This is a valid and important result. But it ALSO demonstrates: static Surprise (leidenalg SurpriseVertexPartition) > static Leiden on the same graphs, because the advantage comes from Surprise vs. modularity, not from incremental vs. static.
+
+The hero experiment therefore demonstrates a property of the OBJECTIVE FUNCTION (Surprise vs. modularity), not of the ALGORITHM (incremental vs. static). A reviewer will say: "Your figure shows Surprise is better than modularity for small communities — we already knew that from Aldecoa & Marín 2011. What's novel about your incremental algorithm?"
+
+The actual novelty of ISL's hero experiment should be: "ISL achieves high NMI on small communities with X% of the computation time of static Surprise recomputation." The resolution-limit advantage is real but is shared with static Surprise; the efficiency is what ISL uniquely contributes.
+
+**Severity: Major | Impact: Novelty, Publication Risk**
+
+### 7.3 Missing Adverse Cases in the Benchmark Suite
+
+Phase 3 documents list "Cherry-picking datasets" as a mistake to avoid and includes "datasets where ISL is expected to perform WORSE (dense, few large communities)." This is good. But the following adversarial cases are missing from the update stream generation strategy and must be added:
+
+- **Gradual community merging:** two small communities grow toward each other and eventually merge. ISL must detect the merge and consolidate the communities. The incremental machinery must update gracefully without requiring global recomputation for every merge event.
+- **Community dissolution:** a community loses edges progressively until it no longer has significant internal density. ISL must dissolve it and redistribute its members.
+- **Adversarial locality violation:** a single edge insertion between two distant communities (bridge edge) that causes a global restructuring. This is the case where ISL's locality assumption fails most severely.
+
+**Severity: Moderate | Impact: Evaluation**
+
+### 7.4 Update Deletion Semantics for Real Datasets
+
+SNAP temporal datasets provide timestamped edge insertions but not deletions. The architecture documents do not specify how deletions are modeled for real datasets. This is not a minor detail:
+
+- If no deletions occur, the graph grows monotonically and M (possible intra-community edges) grows continuously, changing ⟨q⟩ = M/N over time.
+- If a sliding-window deletion model is used (delete edges older than T time units), community structure is fundamentally different from the insertion-only case.
+- The choice changes the dynamics of the gap monitor trigger significantly.
+
+This must be specified before implementation and must be consistent across all methods in the comparison.
+
+**Severity: Moderate | Impact: Evaluation, Reproducibility**
+
+---
+
+## 8. PUBLICATION RISK AUDIT
+
+### Risk 1: "ISL is just Leiden applied to Surprise" — Severity: HIGH
+
+**The objection:** "The ISL algorithm is structurally identical to the Leiden algorithm's local-move phase, applied to a different objective function. The ΔS formula is a straightforward substitution of Surprise for modularity in the gain computation. The affected-region detection is BFS, used in HIT-Leiden and Dynamic Frontier. This is not a research contribution; it's a hyperparameter change."
+
+**Defense viability:** The defense relies on: (1) non-trivial ΔS formula (different counter structure from ΔQ), (2) non-additive landscape requiring different optimization approach, (3) first-mover status, (4) empirical demonstration of qualitatively different behavior (small communities). The defense is adequate for CIKM/WSDM level but will face serious pushback at KDD/WWW.
+
+**What would substantially strengthen the defense:** Prove that the Leiden-style optimization does NOT directly transfer to Surprise — that is, show a graph where Leiden-on-Surprise (leidenalg SurpriseVertexPartition) fails in a way that ISL's adapted incremental approach does not. This would prove that the algorithmic adaptation is non-trivial.
+
+### Risk 2: Approximation validity for the key claim — Severity: CRITICAL
+
+Described in Section 4.2. The asymptotic approximation is weakest where the novelty claim is strongest. If a reviewer who knows the Traag 2015 paper reviews this work, this contradiction will be found.
+
+### Risk 3: Over-partitioning bias invalidates the quality claim — Severity: HIGH
+
+If ISL produces 3× more communities than the ground truth on real graphs due to Surprise's over-partitioning tendency, the "better community detection" claim collapses. The paper includes this risk in diagnostics but has no mitigation strategy that would prevent reviewer rejection.
+
+**What would address this:** (a) Run the over-partitioning diagnostic BEFORE full implementation and characterize the magnitude; (b) if it's severe, add a community size regularization or report results on Significance (Traag et al. 2015) which mitigates over-partitioning; (c) explicitly discuss the over-partitioning tradeoff as a section of the paper (not just a footnote).
+
+### Risk 4: HIT-Leiden not reproducibly compared — Severity: HIGH
+
+Described in Section 6.2. The proposed mitigation (using published numbers) will not satisfy reviewers who want fair apples-to-apples comparison.
+
+### Risk 5: Surprise landscape degeneracy traps — Severity: MODERATE
+
+If ISL's incremental local optimization gets stuck in Surprise degeneracy plateaus — producing partition quality that neither improves nor degrades but oscillates — the paper's efficiency claim is undermined. The method may produce stable but suboptimal partitions that look good on S (because the plateau is nearly optimal) but differ significantly from the true optimal partition. NMI against ground truth would expose this; Surprise alone would not.
+
+### Risk 6: Venue mismatch for contribution level — Severity: MODERATE
+
+At the current specification level, ISL is a CIKM/WSDM-level contribution (strong empirical novelty, moderate theoretical depth). To reach KDD/WWW, at minimum one of the theoretical results (T1: Surprise sensitivity bound, T4: constructive resolution-limit proof) must be in the paper. The T1 bound is described as "a calculus exercise" — if that's true, it should be included. Its absence from a KDD/WWW submission would be noted.
+
+---
+
+## 9. IMPLEMENTATION RISK AUDIT
+
+### What is fully specified and safe to implement:
+
+- ΔS gain formula (mathematically correct, O(d_v) complexity confirmed)
+- Community State Manager (sigma array, comm_size, comm_internal_edges counters, m/p/M/N scalars)
+- Edge update counter maintenance (O(1) per edge, O(k) per batch)
+- Static baselines via leidenalg (SurpriseVertexPartition, ModularityVertexPartition)
+- Evaluation metrics (NMI, ARI, Surprise, Modularity, time, churn rate — all standard)
+- Experiment configuration schema (JSON, per spec)
+- LFR benchmark generation via igraph
+- SNAP dataset loading and streaming
+
+### What must be resolved before Jules begins coding:
+
+1. **Gap monitor specification:** Choose between (a) NMI-based trigger against cached partition, (b) running-mean S trajectory with explicit window size W and threshold σ, or (c) periodic full recomputation every K batches. Each has different implementation requirements. The current "relative drift" description is not a specification.
+
+2. **Adaptive expansion criterion:** The Phase 3 deferral ("start with fixed 1-hop; add adaptive expansion later") is acceptable for a first sprint, but must be made explicit in the Jules spec. ISL-v1 = fixed 1-hop; ISL-v2 = adaptive expansion as ablation. Both must be implemented for the ablation study.
+
+3. **Dwell-time mechanism:** Specify: (a) each node carries a `last_moved_batch` counter; (b) in each local-move pass, skip nodes where `current_batch - last_moved_batch < δ`; (c) δ is a configurable parameter with recommended value 2.
+
+4. **Community cleanup:** What happens to community A when v is the last node to leave it? The community label must be deleted from comm_size and comm_internal_edges. This is bookkeeping but if missed, dictionaries grow unboundedly.
+
+5. **Update deletion modeling for real datasets:** Specify that SNAP datasets are used in insertion-only mode (no deletions), with explicit acknowledgment in the paper. If sliding-window deletion is needed for a specific experiment, specify the window size.
+
+6. **Simplified DynaMo baseline specification:** Either (a) implement fixed-radius BFS + static Leiden as the "incremental modularity" baseline (fully specifiable, avoids DynaMo ambiguity) or (b) explicitly specify what DynaMo operations are included in the simplified version.
+
+### What should never be delegated to Jules without human review:
+
+1. **The resolution-limit demonstration graph construction.** This is the paper's hero experiment. The graph must be carefully designed so that: (a) it has communities below the modularity resolution limit, (b) those communities are genuinely strong (high internal density), (c) the dynamic version involves gradual community formation, not static demonstration. Jules may produce a technically valid graph that is unconvincing to reviewers. A human must design and sign off on this.
+
+2. **The ΔS unit test design.** The comparison between formula-computed ΔS and brute-force recomputed ΔS must cover: (a) small communities (< 10 nodes), (b) large communities (> 1000 nodes), (c) high-gain moves, (d) low-gain moves, (e) moves that decrease S (should be rejected). Jules can write the tests once the coverage criteria are specified.
+
+3. **Baseline fairness audit.** Before running any comparative experiment, a human must verify that all baselines see the identical initial partition and identical update stream. This is specified in Phase 3 but must be explicitly checked, not assumed.
+
+---
+
+## 10. RED TEAM FINDINGS
+
+### Red Team Finding 1: The Warm-Start May Actively Hurt on Surprise
+
+Surprise has many near-optimal partitions (documented degeneracy). In static optimization, this is mitigated by multiple random restarts. In incremental optimization, the warm-start from P(t) removes the random-restart mechanism. The algorithm starts in the basin of P(t) and local moves will find a nearby local optimum — but the globally best partition may be in a completely different basin.
+
+This means ISL's incremental optimization may be systematically worse than running static Surprise from scratch, especially when the graph has evolved significantly. The warm-start is not just "potentially not helpful" — it actively constrains the search to a basin that may be suboptimal.
+
+This failure mode would appear as: ISL achieves lower NMI than static Surprise even on the same graph (not just compared against historical P*(t) but compared against P*(t) from scratch). If this occurs, the entire efficiency argument collapses because the quality obtained by ISL is not "close to static recomputation" but "close to P(t)'s local basin."
+
+**Test this before full implementation: Compare NMI(ISL-result, P*(t)) vs. NMI(P*(t-1), P*(t)) on 5 batches of LFR graphs. If the former is consistently higher, warm-start helps. If not, ISL has a fundamental design problem.**
+
+### Red Team Finding 2: The Over-Partitioning Bias Will Compound Under Incremental Optimization
+
+Surprise's known bias toward many small communities is a static problem. Under incremental optimization, this bias may compound:
+
+Each edge insertion into a community C slightly changes the optimal Surprise partition, potentially benefiting a split of C into C₁ and C₂. ISL's local moves will accept this split if ΔS > 0. After 100 batches, C may have been repeatedly split into many tiny fragments — each split individually justified by a positive ΔS — even if the true community structure remains a single large community C.
+
+The gap monitor would not detect this because S_incremental remains high (over-partitioned partitions have high Surprise by design). NMI against ground truth would detect it, but only in the synthetic evaluation.
+
+On real datasets (without ground truth), this failure mode is invisible unless community counts are explicitly tracked and validated against external labels or domain knowledge.
+
+**This is not a hypothetical risk.** Surprise's over-partitioning tendency on dynamic data should be characterized before the paper makes any quality claims.
+
+### Red Team Finding 3: The ΔM Formula Assumes n_A > 0 Throughout
+
+The ΔM formula requires knowing n_A (current size of community A) and n_B (current size of community B). During the local optimization phase, multiple nodes may be moved in sequence. After node v moves from A to B, n_A decreases by 1 and n_B increases by 1.
+
+When computing ΔS for the next node w moving from A to some community, the formula must use the UPDATED n_A (after v's move), not the original n_A. If Jules uses a cached partition state that is updated only at the end of each full pass (rather than after each individual node move), the gain computations will be incorrect.
+
+This is a correctness bug in the specification, not just an implementation detail. The spec must explicitly state: "n_A, n_B, p, M are updated immediately after each accepted node move and before the gain computation for the next candidate move."
+
+**Severity: Major | Impact: Correctness**
+
+### Red Team Finding 4: Phase 3 Drops Leiden Refinement Too Casually
+
+Phase 3 drops multi-level aggregation for "single-level local moves within small affected sets." The justification is that the affected set is small, so the granularity issue that requires aggregation in full Leiden doesn't apply.
+
+But the Leiden refinement phase is not just about coarsening large graphs. It also prevents the "worse than Louvain" partition problem where communities are split sub-optimally because local moves cannot jump over short temporary quality decreases. Single-level local moves in ISL cannot escape this trap within S₂ for the same reason Louvain cannot escape it at scale.
+
+The practical consequence: ISL will sometimes produce communities in the affected set that are suboptimal and not fixable by further local moves (stuck in a local maximum). Static Leiden would fix this via aggregation. ISL's connectivity check only detects disconnection, not suboptimality.
+
+This means ISL will sometimes produce lower-quality partitions in affected regions than a fresh run of static Leiden on those regions. The frequency and severity of this failure is unknown.
+
+---
+
+## 11. HIGHEST PRIORITY FIXES
+
+**Fix 1 (Critical): Validate asymptotic approximation accuracy for small communities before writing a single line of implementation code.**
+
+Run a 2-hour computational experiment: generate LFR graphs (n=10,000, community sizes from 20 to 500 nodes), compute exact Surprise (using the hypergeometric formula) and asymptotic Surprise for a range of partitions. Plot approximation error vs. community size. This determines whether the main claim is mathematically coherent.
+
+**Fix 2 (Critical): Specify the gap monitor precisely and completely.**
+
+Choose one of the three formulations above (NMI-based, running-mean S, or periodic K-batch). Lock it in the next specification update. Do not allow Jules to interpret "relative drift monitor."
+
+**Fix 3 (Major): Validate the warm-start assumption empirically.**
+
+Test whether P(t) is a useful initialization for Surprise optimization at t+1 by comparing ISL-from-warm-start vs. static-Surprise-from-scratch on 5 LFR batch sequences. If warm start provides no benefit, the project's efficiency claim requires a different justification.
+
+**Fix 4 (Major): Resolve the five cross-document contradictions into a single unified specification.**
+
+The algorithm and architecture specs are currently inconsistent on community closure, multi-level aggregation, gap monitor design, adaptive expansion, and the ΔS relative threshold. Produce a single corrected algorithm specification before Jules begins.
+
+**Fix 5 (Major): Immediately update ΔM formula spec to require IMMEDIATE counter update after each node move.**
+
+Clarify that n_A, n_B, p, M must reflect the current partition state (post all prior moves in this pass) at the time ΔS is computed. This is a correctness requirement, not a style choice.
+
+**Fix 6 (Major): Replace HIT-Leiden direct comparison with "ISL vs. static Leiden quality on small-community LFR benchmarks."**
+
+Frame HIT-Leiden as a proxy comparison (HIT-Leiden ≈ incremental modularity ≈ incremental Leiden quality) rather than a direct runtime competitor. This is more honest and more defensible.
+
+---
+
+## 12. REMAINING OPEN QUESTIONS
+
+1. What is the approximation error of asymptotic Surprise for communities of size 50, 100, 200? (Empirical)
+2. Does P(t) provide a useful warm start for Surprise optimization at t+1 on typical update distributions? (Empirical)
+3. Does Surprise's over-partitioning bias compound under incremental optimization on dynamic graphs? (Empirical)
+4. What is the right gap monitor formulation and parameter values? (Design decision)
+5. Is the Surprise sensitivity bound T1 actually straightforward to prove, or are there complications from the M/N term involving discrete combinatorics? (Mathematical)
+6. Can the T4 constructive proof (resolution-limit failure of incremental modularity) be written cleanly enough for a paper section? (Mathematical)
+7. What exactly is the DynaMo "simplified re-implementation"? (Design decision)
+8. How are edge deletions modeled for real SNAP datasets? (Design decision)
+9. What is the right community-size regularization strategy if over-partitioning is severe? (Design decision)
+
+---
+
+## 13. READINESS ASSESSMENT
+
+| Component | Readiness | Blocker |
+|---|---|---|
+| Static baseline (leidenalg) | **READY** | None |
+| Graph engine (igraph) | **READY** | None |
+| Community state manager | **READY** | Fix 5 (counter update timing) |
+| ΔS gain formula | **READY** | Fix 5 (counter update timing) |
+| Affected set (1-hop, no closure) | **READY** | None |
+| Local optimization phase | **CONDITIONAL** | Fix 4 (contradictions), Fix 5 |
+| Gap monitor | **NOT READY** | Fix 2 (unspecified) |
+| Adaptive expansion | **NOT READY** | Deferred; clarify scope |
+| DynaMo baseline | **NOT READY** | Fix 6 / re-specify |
+| HIT-Leiden comparison | **REDESIGN NEEDED** | Fix 6 |
+| Hero experiment | **NOT READY** | Requires Fix 1 first |
+| Scalability experiments | **DESCOPE** | Python ceiling vs. SNAP datasets |
+
+---
+
+## ASSUMPTIONS TO REJECT
+
+1. **"The asymptotic Surprise approximation is valid for the small-community regime."** It is asymptotically valid; whether it is empirically valid for communities of 50–500 nodes is unverified and potentially contradicted by the approximation's mathematical foundation.
+
+2. **"P(t) is a useful warm start for Surprise optimization at t+1."** This is the core efficiency assumption of all incremental methods. For Surprise specifically, with its known landscape degeneracy, this is less certain than for modularity-based methods. Must be validated empirically.
+
+3. **"Community closure is not needed."** The conclusion is correct (Phase 3 is right). The reasoning ("ΔS only depends on immediate neighbors") is incomplete — nodes far from the perturbation may have changed optimal assignments due to global landscape shifts, even without being in the community closure.
+
+4. **"Multi-level aggregation is not needed for incremental optimization."** This is plausible for small affected sets but is not validated. Dropping it converts ISL from Leiden-equivalent to Louvain-equivalent in quality guarantee terms.
+
+5. **"The Surprise-gap monitor using 'relative drift' is sufficient."** The specification is too vague to implement and too imprecise to make claims about.
+
+6. **"Python + igraph scales to SNAP datasets used in the evaluation."** Contradicted by Phase 3's own scalability analysis (10⁵ node ceiling vs. 10⁶+ datasets).
+
+---
+
+## ASSUMPTIONS TO KEEP
+
+1. **"ISL is the first incremental algorithm targeting Surprise optimization."** Literature search confirmed; claim is defensible.
+
+2. **"The ΔS gain formula is O(d_v) per node-move evaluation."** Mathematically verified. Correct.
+
+3. **"leidenalg SurpriseVertexPartition provides the static Surprise baseline for free."** Confirmed by Phase 3. Correct.
+
+4. **"Resolution-limit-free objectives detect communities below √(2m) that modularity misses."** This is a proven property of Surprise (Aldecoa & Marín 2011). Correct.
+
+5. **"igraph is the right graph backend (leidenalg compatibility)."** Correct. NetworkX would be 10–100× slower and doesn't integrate with leidenalg.
+
+6. **"The Surprise sensitivity value bound |ΔS| ≤ O(k · ln(m/k)) is derivable."** Plausible from the Lipschitz continuity of D_KL; likely straightforward. Worth attempting.
+
+---
+
+## MOST DANGEROUS RISK
+
+**The asymptotic approximation is least accurate precisely for small communities — the exact operating regime of ISL's primary novelty claim.**
+
+If the approximation error for communities of size 50–200 nodes is above 5%, then:
+- ISL does not optimize Surprise for small communities; it optimizes a poor approximation of Surprise
+- The "resolution-limit-free" claim is undermined because the quality being tracked is not genuine Surprise
+- The hero experiment may be showing a property of the approximation error, not genuine community detection
+- The comparison against static leidenalg (which uses the same approximation) would still favor ISL in speed, but the absolute quality claims would be questionable
+
+This risk is discoverable in 2 hours of computation before any code is written. Its failure is not necessarily fatal — the project could switch to exact Surprise for small communities — but it must be known before Sprint 1 begins.
+
+---
+
+## MOST IMPORTANT FIX
+
+**Validate the asymptotic approximation accuracy for small communities on LFR benchmarks. Do this before writing a single line of implementation code.**
+
+This is a 2-hour experiment that determines whether the paper's central claim is mathematically coherent. Everything else — implementation, evaluation design, baseline integration, paper framing — depends on this validation. If the approximation holds, proceed. If not, the project must either switch to exact Surprise for small communities, reframe the claim around medium communities where the approximation is accurate, or pivot to a different objective.
+
+---
+
+## CAN THE PROJECT PROCEED TO IMPLEMENTATION?
+
+**CONDITIONAL**
+
+The project should NOT proceed to full Sprint 1–4 implementation as specified. Instead:
+
+**Proceed to a 2-sprint pre-validation phase:**
+
+**Pre-Sprint A (1 week): Validate three core assumptions**
+1. Asymptotic Surprise approximation accuracy vs. community size (compute exact and asymptotic Surprise on LFR benchmarks)
+2. Warm-start utility: does P(t) provide a useful initialization for Surprise at t+1? (compare ISL-warm-start vs. static Surprise on 5 batch sequences)
+3. Over-partitioning bias magnitude: how many communities does static Surprise produce vs. ground truth on LFR graphs with known community counts?
+
+**Pre-Sprint B (3 days): Resolve the specification contradictions**
+1. Produce a single unified algorithm specification resolving the five contradictions
+2. Specify the gap monitor precisely
+3. Specify counter update timing (Fix 5)
+4. Decide on DynaMo baseline approach
+
+**If Pre-Sprint A results are acceptable (approximation error < 5% for communities ≥ 100 nodes, warm-start reduces local search time, over-partitioning is manageable):** Proceed to Sprint 1 as specified.
+
+**If any Pre-Sprint A validation fails:** Revise the direction before committing 8 weeks of implementation effort.
+
+**Justification:** The current architecture commits 8 weeks of development to a system whose core mathematical claims have not been empirically validated. Pre-validation costs 1.5 weeks and prevents building the wrong thing.
+
+---
+
+## WHAT OPUS FINAL CONSOLIDATION MUST FIX
+
+1. Produce a single unified algorithm specification that supersedes Phase 2 and Phase 3 on all five cross-document contradictions.
+2. Specify the gap monitor completely: exact formulation, parameters, and trigger condition.
+3. Define the Pre-Sprint A validation experiments with precise procedures and acceptance criteria.
+4. Clarify the publication framing: the paper's primary claim is quality (resolution-limit-free), not speed. All figures, tables, and abstract language must be consistent with this.
+5. Reframe the HIT-Leiden comparison as a proxy comparison (ISL vs. static Leiden quality) rather than a direct integration.
+6. Specify the ΔM counter update timing explicitly: counters update IMMEDIATELY after each accepted node move, before the next gain computation.
+7. Specify the DynaMo baseline: either (a) use fixed-radius BFS + static Leiden as the incremental modularity proxy, or (b) fully specify the DynaMo simplifications.
+8. Add the T4 constructive proof (resolution-limit failure) as a required contribution in the algorithm specification — this is achievable and strengthens the theoretical component significantly.
+9. Explicitly bound the paper's evaluation scope: Python prototype targets graphs up to n=10⁵; larger dataset claims require a Cython acceleration sprint or reduction to static comparison only.
+10. Include the over-partitioning bias diagnostic as a REQUIRED section in the paper, not just a footnote.
+
+---
+
+## CONFIDENCE LEVEL
+
+| Aspect | Prior Phase Confidence | This Review's Assessment |
+|---|---|---|
+| ISL is implementable | 90% | **75%** — conditional on Pre-Sprint A results |
+| ISL detects small communities better than modularity methods | 85% | **70%** — conditional on approximation validity |
+| ISL provides practical speedup over static Surprise | 65% | **50%** — warm-start assumption unvalidated |
+| Surprise sensitivity bound is provable | 80% | **70%** — likely but M/N term introduces discrete combinatorics |
+| ISL is publishable at CIKM/WSDM | 70% | **60%** — conditional on resolving evaluation and HIT-Leiden issues |
+| ISL is publishable at KDD/WWW | 55% | **35%** — needs stronger theoretical result; approximation risk is real |
+| Pre-Sprint A validations will pass | Not assessed | **65%** — Surprise is generally well-behaved; over-partitioning is the highest risk |

@@ -1,0 +1,152 @@
+# PROJECT MASTER BRIEF
+
+## 1. Project Context
+
+Working title:
+Incremental Community Detection in Evolving Social Networks via Adaptive Graph Partitioning
+
+Core idea:
+Social networks evolve over time. Instead of recomputing communities from scratch after every graph update, the project proposes maintaining communities incrementally by:
+1. detecting the affected region around changed edges or nodes,
+2. adaptively expanding that region when needed,
+3. locally re-optimizing community assignments only in the affected subgraph,
+4. periodically applying a global correction pass to prevent drift.
+
+High-level goal:
+Preserve community quality close to full recomputation while significantly reducing update time, recomputation cost, and unnecessary reprocessing.
+
+Primary quality concepts:
+- modularity
+- community stability across time
+- update latency
+- scalability
+- number of nodes reprocessed per update
+- fidelity versus full recomputation
+
+Core research hypothesis:
+An adaptive affected-region strategy can preserve most of the quality of full community recomputation while reducing runtime substantially on evolving graphs.
+
+
+## 2. Current Research Direction
+
+The project is currently framed as a research problem, not an implementation problem.
+
+The strongest direction is to treat this as a study of locality in modularity-based community detection under graph perturbations.
+
+The key question is:
+Under what conditions is local re-optimization sufficient to approximate full recomputation closely, and when does locality break down?
+
+Current direction:
+- use adaptive affected-region expansion as the main mechanism
+- compare incremental local updates against full global recomputation
+- evaluate quality, stability, and runtime tradeoffs
+- identify conditions where local updates fail
+- develop a principled trigger for global correction
+- keep the project publishable by improving both novelty and experimental rigor
+
+Important concern:
+A naive version of the project can collapse into "BFS around changed edges + local Louvain + periodic global rerun," which is too weak as a research contribution. The project must be stronger than that.
+
+
+## 3. Sonnet Review #1 Output (Cleaned Version)
+
+Executive verdict:
+Moderate promise, currently fragile.
+
+Main findings:
+- The problem is real and nontrivial.
+- The space between streaming methods and full recomputation is meaningful.
+- The current framing is too close to existing dynamic community detection literature unless the adaptive part is formalized properly.
+- The novelty must come from a stronger definition of locality, not from a basic incremental pipeline.
+
+Strongest possible framing:
+Given a graph G(t) with a community partition C(t) and a batch of updates Δ(t), compute C(t+1) such that quality remains close to full recomputation while touching far fewer nodes than a global rerun.
+
+Main risks identified:
+- modularity has a resolution limit
+- local updates may miss global effects
+- a fixed BFS radius is too crude
+- periodic global correction is too weak unless quality-triggered
+- node flickering and temporal instability can hurt usefulness
+- the evaluation must include existing dynamic baselines, not just full recomputation
+
+Strongest research opportunity:
+Develop a formal locality criterion that determines when local re-optimization is enough and when global correction must be triggered.
+
+Weakest version:
+BFS with a fixed radius, local Louvain, and periodic full reruns evaluated only against full Louvain using modularity alone.
+
+Why that is weak:
+- weak novelty
+- circular evaluation
+- no serious dynamic baseline comparison
+- no formal contribution
+
+
+## 4. Opus Handoff Package
+
+Questions Opus must answer:
+1. Does a formal locality condition exist for modularity-based community detection under perturbation?
+2. How far can a local update influence the optimal partition?
+3. Is adaptive expansion genuinely novel, or just a heuristic wrapper?
+4. What are the closest existing dynamic/incremental community detection methods?
+5. What metrics and datasets are required for a credible evaluation?
+6. What would make this project publishable?
+7. Is modularity the right objective, or should another metric be added?
+8. What should the strongest version of this project look like?
+
+Areas requiring literature review:
+- dynamic and incremental community detection
+- modularity theory and limitations
+- resolution limit
+- temporal community stability
+- streaming graph algorithms
+- perturbation analysis for graph partitioning
+- alternative quality metrics such as conductance, surprise, or significance
+
+Areas requiring mathematical formalization:
+- formal definition of locality
+- bound on modularity change under k-edge updates
+- adaptive expansion criterion
+- online modularity gap estimator
+- community stability metric
+
+Areas requiring algorithmic innovation:
+- adaptive expansion criterion
+- quality-triggered global correction
+- community-level change detector
+- temporal smoothing for node reassignment
+- incremental optimization strategy
+
+Areas requiring experimental validation:
+- synthetic temporal benchmarks with ground truth
+- real temporal graph datasets
+- runtime and speedup measurement
+- stability and churn analysis
+- ablation studies
+- stress tests for community merge/split events
+
+Most promising publication direction:
+A formal analysis of locality in modularity-based incremental community detection, with the adaptive algorithm as the practical realization.
+
+Most dangerous publication risk:
+The idea may already exist in prior incremental community detection papers in a weaker or similar form. Novelty must be checked carefully before implementation.
+
+
+## 5. Workflow Rules
+
+This file is the source of truth for the project.
+
+Rules:
+- Do not treat this as a coding prompt.
+- Do not jump into implementation before research is refined.
+- Do not let later stages repeat the same ideas without adding new information.
+- Every stage must increase information density.
+- Sonnet must critique and sharpen the project.
+- Opus must do deep research, then design.
+- Jules must only be used after the project direction is sufficiently strong.
+- Do not allow the workflow to become a loop of repeated summaries.
+- Every output must answer:
+  1. What is new?
+  2. What is invalidated?
+  3. What is the next stronger step?
