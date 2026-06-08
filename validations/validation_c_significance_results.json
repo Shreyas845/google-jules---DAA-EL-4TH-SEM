@@ -1,0 +1,482 @@
+[
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 70,
+    "k_modularity": 64,
+    "nmi_significance": 0.9999999999999998,
+    "nmi_modularity": 0.9945455623560193
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 81,
+    "k_modularity": 69,
+    "nmi_significance": 0.9995739489554245,
+    "nmi_modularity": 0.9913614890773085
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 77,
+    "k_modularity": 69,
+    "nmi_significance": 0.9997111933914606,
+    "nmi_modularity": 0.9948516500991238
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 84,
+    "k_modularity": 76,
+    "nmi_significance": 1.0,
+    "nmi_modularity": 0.9931118508665774
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 80,
+    "k_modularity": 73,
+    "nmi_significance": 1.0000000000000002,
+    "nmi_modularity": 0.9933503474873366
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 84,
+    "k_modularity": 76,
+    "nmi_significance": 0.9998754203964889,
+    "nmi_modularity": 0.9939126169569391
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 74,
+    "k_modularity": 65,
+    "nmi_significance": 1.0,
+    "nmi_modularity": 0.9911398629904122
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 81,
+    "k_modularity": 74,
+    "nmi_significance": 1.0,
+    "nmi_modularity": 0.994060825587767
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 85,
+    "k_modularity": 73,
+    "nmi_significance": 1.0,
+    "nmi_modularity": 0.9897279393322865
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 75,
+    "k_modularity": 68,
+    "nmi_significance": 0.9996734961154538,
+    "nmi_modularity": 0.9946881030167003
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 85,
+    "k_modularity": 58,
+    "nmi_significance": 0.9961301731574775,
+    "nmi_modularity": 0.9876368115541548
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 94,
+    "k_modularity": 61,
+    "nmi_significance": 0.9967181391693014,
+    "nmi_modularity": 0.9822813291546502
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 86,
+    "k_modularity": 62,
+    "nmi_significance": 0.9972655418903468,
+    "nmi_modularity": 0.9873192309033714
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 96,
+    "k_modularity": 63,
+    "nmi_significance": 0.9975362961651554,
+    "nmi_modularity": 0.9784732328210644
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 91,
+    "k_modularity": 60,
+    "nmi_significance": 0.997766970487666,
+    "nmi_modularity": 0.9748014353267325
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 96,
+    "k_modularity": 64,
+    "nmi_significance": 0.9977364834600629,
+    "nmi_modularity": 0.9802516876150116
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 84,
+    "k_modularity": 60,
+    "nmi_significance": 0.9983498809976086,
+    "nmi_modularity": 0.9841327269766014
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 94,
+    "k_modularity": 65,
+    "nmi_significance": 0.9973394271511279,
+    "nmi_modularity": 0.9827955448727608
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 98,
+    "k_modularity": 64,
+    "nmi_significance": 0.9972983650374683,
+    "nmi_modularity": 0.9791937898643159
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 82,
+    "k_modularity": 57,
+    "nmi_significance": 0.9981546651981555,
+    "nmi_modularity": 0.9822385475949137
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 164,
+    "k_modularity": 50,
+    "nmi_significance": 0.9658627543375273,
+    "nmi_modularity": 0.9701537338864257
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 163,
+    "k_modularity": 54,
+    "nmi_significance": 0.9700201639480466,
+    "nmi_modularity": 0.9625274420830979
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 164,
+    "k_modularity": 55,
+    "nmi_significance": 0.9668475385581284,
+    "nmi_modularity": 0.9704566522343911
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 167,
+    "k_modularity": 50,
+    "nmi_significance": 0.9753577105258117,
+    "nmi_modularity": 0.9497186491805414
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 158,
+    "k_modularity": 50,
+    "nmi_significance": 0.9736229929853812,
+    "nmi_modularity": 0.9512063899015083
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 142,
+    "k_modularity": 57,
+    "nmi_significance": 0.9813422129822532,
+    "nmi_modularity": 0.9640208534022376
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 139,
+    "k_modularity": 53,
+    "nmi_significance": 0.9781436364690635,
+    "nmi_modularity": 0.970347691356534
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 156,
+    "k_modularity": 57,
+    "nmi_significance": 0.9764851042136176,
+    "nmi_modularity": 0.9636369153840657
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 150,
+    "k_modularity": 55,
+    "nmi_significance": 0.9779781372792541,
+    "nmi_modularity": 0.9578039034464093
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 158,
+    "k_modularity": 50,
+    "nmi_significance": 0.9686495456558403,
+    "nmi_modularity": 0.9643544934551418
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 318,
+    "k_modularity": 40,
+    "nmi_significance": 0.8657155532040737,
+    "nmi_modularity": 0.8838372903419893
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 316,
+    "k_modularity": 47,
+    "nmi_significance": 0.8831008080518564,
+    "nmi_modularity": 0.9046325251155803
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 301,
+    "k_modularity": 38,
+    "nmi_significance": 0.8720524899187418,
+    "nmi_modularity": 0.8596885044511928
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 302,
+    "k_modularity": 42,
+    "nmi_significance": 0.8857465730371367,
+    "nmi_modularity": 0.8874050492482306
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 331,
+    "k_modularity": 40,
+    "nmi_significance": 0.8719924197646408,
+    "nmi_modularity": 0.8826799637090009
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 303,
+    "k_modularity": 43,
+    "nmi_significance": 0.8976094566963577,
+    "nmi_modularity": 0.8856281317217392
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 316,
+    "k_modularity": 39,
+    "nmi_significance": 0.8725267012113875,
+    "nmi_modularity": 0.8840201350898333
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 322,
+    "k_modularity": 45,
+    "nmi_significance": 0.8719684563769322,
+    "nmi_modularity": 0.8754298320036156
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 304,
+    "k_modularity": 43,
+    "nmi_significance": 0.8801399391531254,
+    "nmi_modularity": 0.8874739747428373
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 350,
+    "k_modularity": 39,
+    "nmi_significance": 0.8526816300537562,
+    "nmi_modularity": 0.8749089755465126
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 42,
+    "k_true": 9,
+    "k_surprise": 107,
+    "k_modularity": 9
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 43,
+    "k_true": 11,
+    "k_surprise": 48,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 44,
+    "k_true": 11,
+    "k_surprise": 40,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 45,
+    "k_true": 12,
+    "k_surprise": 35,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 46,
+    "k_true": 12,
+    "k_surprise": 49,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 42,
+    "k_true": 9,
+    "k_surprise": 617,
+    "k_modularity": 9
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 43,
+    "k_true": 11,
+    "k_surprise": 459,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 44,
+    "k_true": 11,
+    "k_surprise": 362,
+    "k_modularity": 10
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 45,
+    "k_true": 12,
+    "k_surprise": 342,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 46,
+    "k_true": 12,
+    "k_surprise": 299,
+    "k_modularity": 12
+  }
+]

@@ -59,9 +59,9 @@ def run_c1_c2():
                 continue
 
             np.random.seed(seed)
-            p_surprise = leidenalg.find_partition(G, leidenalg.SurpriseVertexPartition, seed=seed)
-            k_surprise = len(set(p_surprise.membership))
-            nmi_surprise = nmi(p_surprise.membership, ground_truth)
+            p_significance = leidenalg.find_partition(G, leidenalg.SignificanceVertexPartition, seed=seed)
+            k_surprise = len(set(p_significance.membership))
+            nmi_significance = nmi(p_significance.membership, ground_truth)
 
             np.random.seed(seed)
             p_modularity = leidenalg.find_partition(G, leidenalg.ModularityVertexPartition, seed=seed)
@@ -75,7 +75,7 @@ def run_c1_c2():
                 'k_true': k_true,
                 'k_surprise': k_surprise,
                 'k_modularity': k_modularity,
-                'nmi_surprise': nmi_surprise,
+                'nmi_significance': nmi_significance,
                 'nmi_modularity': nmi_modularity
             })
 
@@ -108,8 +108,8 @@ def run_c3():
                 continue
 
             np.random.seed(seed)
-            p_surprise = leidenalg.find_partition(G, leidenalg.SurpriseVertexPartition, seed=seed)
-            k_surprise = len(set(p_surprise.membership))
+            p_significance = leidenalg.find_partition(G, leidenalg.SignificanceVertexPartition, seed=seed)
+            k_surprise = len(set(p_significance.membership))
 
             np.random.seed(seed)
             p_modularity = leidenalg.find_partition(G, leidenalg.ModularityVertexPartition, seed=seed)
@@ -133,19 +133,19 @@ def main():
     results.extend(run_c1_c2())
     results.extend(run_c3())
 
-    with open('validations/validation_c_results.json', 'w') as f:
+    with open('validations/validation_c_significance_results.json', 'w') as f:
         json.dump(results, f, indent=2)
 
     c1c2_results = [r for r in results if r['experiment'] == 'C1_C2']
     mus = sorted(list(set([r['mu'] for r in c1c2_results])))
 
-    surprise_ratios_mean = []
-    surprise_ratios_std = []
+    significance_ratios_mean = []
+    significance_ratios_std = []
     modularity_ratios_mean = []
     modularity_ratios_std = []
 
-    surprise_nmi_mean = []
-    surprise_nmi_std = []
+    significance_nmi_mean = []
+    significance_nmi_std = []
     modularity_nmi_mean = []
     modularity_nmi_std = []
 
@@ -159,17 +159,17 @@ def main():
         s_ratios = [r['k_surprise']/r['k_true'] for r in rs]
         m_ratios = [r['k_modularity']/r['k_true'] for r in rs]
 
-        s_nmis = [r['nmi_surprise'] for r in rs]
+        s_nmis = [r['nmi_significance'] for r in rs]
         m_nmis = [r['nmi_modularity'] for r in rs]
 
-        surprise_ratios_mean.append(np.mean(s_ratios))
-        surprise_ratios_std.append(np.std(s_ratios))
+        significance_ratios_mean.append(np.mean(s_ratios))
+        significance_ratios_std.append(np.std(s_ratios))
 
         modularity_ratios_mean.append(np.mean(m_ratios))
         modularity_ratios_std.append(np.std(m_ratios))
 
-        surprise_nmi_mean.append(np.mean(s_nmis))
-        surprise_nmi_std.append(np.std(s_nmis))
+        significance_nmi_mean.append(np.mean(s_nmis))
+        significance_nmi_std.append(np.std(s_nmis))
 
         modularity_nmi_mean.append(np.mean(m_nmis))
         modularity_nmi_std.append(np.std(m_nmis))
@@ -178,11 +178,11 @@ def main():
 
     plt.figure(figsize=(10, 6))
 
-    k_s_mean = [r * t for r, t in zip(surprise_ratios_mean, true_counts)]
+    k_s_mean = [r * t for r, t in zip(significance_ratios_mean, true_counts)]
     k_m_mean = [r * t for r, t in zip(modularity_ratios_mean, true_counts)]
 
     plt.plot(mus, true_counts, 'k--', label='Ground Truth')
-    plt.plot(mus, k_s_mean, 'b-o', label='Surprise')
+    plt.plot(mus, k_s_mean, 'b-o', label='Significance')
     plt.plot(mus, k_m_mean, 'r-x', label='Modularity')
 
     plt.xlabel('Mixing Parameter (mu)')
@@ -190,10 +190,10 @@ def main():
     plt.title('Community Count vs Mu')
     plt.legend()
     plt.grid(True)
-    plt.savefig('validations/validation_c_community_count_plot.png')
+    plt.savefig('validations/validation_c_significance_community_count_plot.png')
 
     plt.figure(figsize=(10, 6))
-    plt.errorbar(mus, surprise_nmi_mean, yerr=surprise_nmi_std, label='Surprise', marker='o')
+    plt.errorbar(mus, significance_nmi_mean, yerr=significance_nmi_std, label='Significance', marker='o')
     plt.errorbar(mus, modularity_nmi_mean, yerr=modularity_nmi_std, label='Modularity', marker='x')
 
     plt.xlabel('Mixing Parameter (mu)')
@@ -201,38 +201,38 @@ def main():
     plt.title('NMI vs Mu')
     plt.legend()
     plt.grid(True)
-    plt.savefig('validations/validation_c_nmi_plot.png')
+    plt.savefig('validations/validation_c_significance_nmi_plot.png')
 
-    with open('validations/validation_c_report.md', 'w') as f:
+    with open('validations/validation_c_significance_report.md', 'w') as f:
         f.write("# Validation C: Over-Partitioning Bias Magnitude\n\n")
 
         f.write("## Success Criteria\n")
-        f.write("- K_surprise / K_true <= 2.0 for mu <= 0.3\n")
-        f.write("- NMI(Surprise, ground_truth) >= 0.85 for mu <= 0.3\n\n")
+        f.write("- K_significance / K_true <= 2.0 for mu <= 0.3\n")
+        f.write("- NMI(Significance, ground_truth) >= 0.85 for mu <= 0.3\n\n")
 
         f.write("## Failure Criteria\n")
-        f.write("- K_surprise / K_true > 3.0 for mu <= 0.3\n")
-        f.write("- NMI(Surprise, ground_truth) < 0.70 for mu <= 0.3\n\n")
+        f.write("- K_significance / K_true > 3.0 for mu <= 0.3\n")
+        f.write("- NMI(Significance, ground_truth) < 0.70 for mu <= 0.3\n\n")
 
         f.write("## Results (Experiment C1/C2)\n\n")
-        f.write("| Mu | K_surp/K_true (mean±std) | K_mod/K_true (mean±std) | NMI Surp (mean±std) | NMI Mod (mean±std) |\n")
+        f.write("| Mu | K_signif/K_true (mean±std) | K_mod/K_true (mean±std) | NMI Signif (mean±std) | NMI Mod (mean±std) |\n")
         f.write("|----|--------------------------|-------------------------|---------------------|--------------------|\n")
 
         passed = True
         failed = False
 
         for i, mu in enumerate(mus):
-            f.write(f"| {mu:.1f} | {surprise_ratios_mean[i]:.2f} ± {surprise_ratios_std[i]:.2f} | ")
+            f.write(f"| {mu:.1f} | {significance_ratios_mean[i]:.2f} ± {significance_ratios_std[i]:.2f} | ")
             f.write(f"{modularity_ratios_mean[i]:.2f} ± {modularity_ratios_std[i]:.2f} | ")
-            f.write(f"{surprise_nmi_mean[i]:.4f} ± {surprise_nmi_std[i]:.4f} | ")
+            f.write(f"{significance_nmi_mean[i]:.4f} ± {significance_nmi_std[i]:.4f} | ")
             f.write(f"{modularity_nmi_mean[i]:.4f} ± {modularity_nmi_std[i]:.4f} |\n")
 
             if mu <= 0.3:
-                if surprise_ratios_mean[i] > 2.0: passed = False
-                if surprise_nmi_mean[i] < 0.85: passed = False
+                if significance_ratios_mean[i] > 2.0: passed = False
+                if significance_nmi_mean[i] < 0.85: passed = False
 
-                if surprise_ratios_mean[i] > 3.0: failed = True
-                if surprise_nmi_mean[i] < 0.70: failed = True
+                if significance_ratios_mean[i] > 3.0: failed = True
+                if significance_nmi_mean[i] < 0.70: failed = True
 
         f.write("\n## Adverse Case Results (Experiment C3)\n\n")
         c3_results = [r for r in results if r['experiment'] == 'C3']
@@ -240,7 +240,7 @@ def main():
             f.write("C3 experiments failed to generate LFR graphs.\n")
         else:
             c3_mus = sorted(list(set([r['mu'] for r in c3_results])))
-            f.write("| Mu | K_surp/K_true (mean) | K_mod/K_true (mean) |\n")
+            f.write("| Mu | K_signif/K_true (mean) | K_mod/K_true (mean) |\n")
             f.write("|----|----------------------|---------------------|\n")
             for mu in c3_mus:
                 rs = [r for r in c3_results if r['mu'] == mu]
