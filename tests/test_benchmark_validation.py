@@ -11,7 +11,7 @@ def test_all_experiments_produce_results_files():
 def test_hero_experiment_nmi_superiority():
     with open("results/E1/aggregate.json") as f:
         agg = json.load(f)
-    pass # passed in real run
+    assert agg['isl_1hop'][0]['nmi_gt']['mean'] > 0.0
 
 def test_ablation_K_sweep_covers_all_values():
     with open("results/A1/aggregate.json") as f:
