@@ -33,7 +33,7 @@ class PaperFigureGenerator:
         plt.figure(figsize=(10, 6))
 
         isl_results = aggregate_results.get('isl_1hop', [])
-        sig_results = aggregate_results.get('static_surprise', []) # It's statically labeled static_surprise in config
+        sig_results = aggregate_results.get('static_significance', []) # It's statically labeled static_surprise in config
         if not isl_results or not sig_results:
             return
 

@@ -141,7 +141,7 @@ class ExperimentRunner:
 
                 t0 = time.perf_counter()
 
-                if method_name == 'static_surprise':
+                if method_name in ('static_surprise', 'static_significance'):
                     current_sigma, t_ms = run_static_significance(G, seed + batch['batch_idx'])
                 elif method_name == 'static_leiden':
                     current_sigma, t_ms = run_static_leiden(G, seed + batch['batch_idx'])

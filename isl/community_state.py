@@ -29,7 +29,11 @@ class CommunityState:
 
         # Keep an active partition object for fast evaluation
         if self.graph is not None:
-            self.partition_obj = leidenalg.SignificanceVertexPartition(self.graph, initial_membership=self.sigma.tolist())
+            # Leidenalg requires labels to be consecutive and < n.
+            unique_labels = list(self.comm_size.keys())
+            label_map = {old_label: new_label for new_label, old_label in enumerate(unique_labels)}
+            mapped_membership = [label_map[c] for c in self.sigma]
+            self.partition_obj = leidenalg.SignificanceVertexPartition(self.graph, initial_membership=mapped_membership)
         else:
             self.partition_obj = None
 

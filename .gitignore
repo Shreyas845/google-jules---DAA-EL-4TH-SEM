@@ -6,3 +6,6 @@ results/
 test_results/
 configs/experiments/
 figures/
+frontend/node_modules/
+frontend/build/
+e*.log
