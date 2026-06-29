@@ -1,0 +1,23 @@
+=== Validation C Diagnostic Report ===
+
+Petersen graph: 5 communities (expected: 1-3)
+--- Statistics for Petersen graph ---
+Total number of communities: 5
+Size of largest community: 2
+Size of smallest community: 2
+First 20 community sizes (sorted descending): [2, 2, 2, 2, 2]
+
+Two-clique graph: 2 communities (expected: 2)
+--- Statistics for Two-clique graph ---
+Total number of communities: 2
+Size of largest community: 10
+Size of smallest community: 10
+First 20 community sizes (sorted descending): [10, 10]
+
+Small LFR: 100 nodes, 188 edges
+Small LFR Surprise: 99 communities
+--- Statistics for Small LFR Surprise ---
+Total number of communities: 99
+Size of largest community: 2
+Size of smallest community: 1
+First 20 community sizes (sorted descending): [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

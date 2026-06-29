@@ -1,0 +1,482 @@
+[
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 4999,
+    "k_modularity": 64,
+    "nmi_surprise": 0.6424350739208896,
+    "nmi_modularity": 0.9945455623560193
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 4999,
+    "k_modularity": 69,
+    "nmi_surprise": 0.6543665606302321,
+    "nmi_modularity": 0.9913614890773085
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 4999,
+    "k_modularity": 69,
+    "nmi_surprise": 0.6512566769502083,
+    "nmi_modularity": 0.9948516500991238
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 4999,
+    "k_modularity": 76,
+    "nmi_surprise": 0.6592142510291027,
+    "nmi_modularity": 0.9931118508665774
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 4999,
+    "k_modularity": 73,
+    "nmi_surprise": 0.65631954791821,
+    "nmi_modularity": 0.9933503474873366
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 4999,
+    "k_modularity": 76,
+    "nmi_surprise": 0.6624460932695668,
+    "nmi_modularity": 0.9939126169569391
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 65,
+    "nmi_surprise": 0.6468245952135447,
+    "nmi_modularity": 0.9911398629904122
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 4999,
+    "k_modularity": 74,
+    "nmi_surprise": 0.6593831638362602,
+    "nmi_modularity": 0.994060825587767
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 4999,
+    "k_modularity": 73,
+    "nmi_surprise": 0.6607064675040998,
+    "nmi_modularity": 0.9897279393322865
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.1,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 68,
+    "nmi_surprise": 0.6450745689256573,
+    "nmi_modularity": 0.9946881030167003
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 4999,
+    "k_modularity": 58,
+    "nmi_surprise": 0.6424350739208895,
+    "nmi_modularity": 0.9876368115541548
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 4999,
+    "k_modularity": 61,
+    "nmi_surprise": 0.6543665606302324,
+    "nmi_modularity": 0.9822813291546502
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 4999,
+    "k_modularity": 62,
+    "nmi_surprise": 0.6512566769502082,
+    "nmi_modularity": 0.9873192309033714
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 4999,
+    "k_modularity": 63,
+    "nmi_surprise": 0.6592142510291029,
+    "nmi_modularity": 0.9784732328210644
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 4999,
+    "k_modularity": 60,
+    "nmi_surprise": 0.6563632885400794,
+    "nmi_modularity": 0.9748014353267325
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 4999,
+    "k_modularity": 64,
+    "nmi_surprise": 0.6624025506667449,
+    "nmi_modularity": 0.9802516876150116
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 60,
+    "nmi_surprise": 0.6468245952135447,
+    "nmi_modularity": 0.9841327269766014
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 4999,
+    "k_modularity": 65,
+    "nmi_surprise": 0.6593831638362602,
+    "nmi_modularity": 0.9827955448727608
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 4999,
+    "k_modularity": 64,
+    "nmi_surprise": 0.6607064675040998,
+    "nmi_modularity": 0.9791937898643159
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.2,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 57,
+    "nmi_surprise": 0.6450304608118821,
+    "nmi_modularity": 0.9822385475949137
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 4999,
+    "k_modularity": 50,
+    "nmi_surprise": 0.6423908798812447,
+    "nmi_modularity": 0.9701537338864257
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 4999,
+    "k_modularity": 54,
+    "nmi_surprise": 0.6543227550070722,
+    "nmi_modularity": 0.9625274420830979
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 4999,
+    "k_modularity": 55,
+    "nmi_surprise": 0.6512127700881903,
+    "nmi_modularity": 0.9704566522343911
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 4999,
+    "k_modularity": 50,
+    "nmi_surprise": 0.6592142510291028,
+    "nmi_modularity": 0.9497186491805414
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 4999,
+    "k_modularity": 50,
+    "nmi_surprise": 0.6563632885400794,
+    "nmi_modularity": 0.9512063899015083
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 4999,
+    "k_modularity": 57,
+    "nmi_surprise": 0.6624025506667449,
+    "nmi_modularity": 0.9640208534022376
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 53,
+    "nmi_surprise": 0.6467805440699592,
+    "nmi_modularity": 0.970347691356534
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 4999,
+    "k_modularity": 57,
+    "nmi_surprise": 0.6593831638362602,
+    "nmi_modularity": 0.9636369153840657
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 4999,
+    "k_modularity": 55,
+    "nmi_surprise": 0.6606628682696659,
+    "nmi_modularity": 0.9578039034464093
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.3,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 50,
+    "nmi_surprise": 0.6450304608118821,
+    "nmi_modularity": 0.9643544934551418
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 42,
+    "k_true": 70,
+    "k_surprise": 4999,
+    "k_modularity": 40,
+    "nmi_surprise": 0.6423908798812445,
+    "nmi_modularity": 0.8838372903419893
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 43,
+    "k_true": 79,
+    "k_surprise": 4999,
+    "k_modularity": 47,
+    "nmi_surprise": 0.6543665606302321,
+    "nmi_modularity": 0.9046325251155803
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 44,
+    "k_true": 75,
+    "k_surprise": 4999,
+    "k_modularity": 38,
+    "nmi_surprise": 0.6512566769502082,
+    "nmi_modularity": 0.8596885044511928
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 45,
+    "k_true": 84,
+    "k_surprise": 4999,
+    "k_modularity": 42,
+    "nmi_surprise": 0.6591706032171954,
+    "nmi_modularity": 0.8874050492482306
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 46,
+    "k_true": 80,
+    "k_surprise": 4999,
+    "k_modularity": 40,
+    "nmi_surprise": 0.6563632885400795,
+    "nmi_modularity": 0.8826799637090009
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 47,
+    "k_true": 83,
+    "k_surprise": 4999,
+    "k_modularity": 43,
+    "nmi_surprise": 0.6624460932695667,
+    "nmi_modularity": 0.8856281317217392
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 48,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 39,
+    "nmi_surprise": 0.646824595213545,
+    "nmi_modularity": 0.8840201350898333
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 49,
+    "k_true": 81,
+    "k_surprise": 4999,
+    "k_modularity": 45,
+    "nmi_surprise": 0.6593395215231245,
+    "nmi_modularity": 0.8754298320036156
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 50,
+    "k_true": 85,
+    "k_surprise": 4999,
+    "k_modularity": 43,
+    "nmi_surprise": 0.6607064675040997,
+    "nmi_modularity": 0.8874739747428373
+  },
+  {
+    "experiment": "C1_C2",
+    "mu": 0.4,
+    "seed": 51,
+    "k_true": 74,
+    "k_surprise": 4999,
+    "k_modularity": 39,
+    "nmi_surprise": 0.6450304608118821,
+    "nmi_modularity": 0.8749089755465126
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 42,
+    "k_true": 9,
+    "k_surprise": 9999,
+    "k_modularity": 9
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 43,
+    "k_true": 11,
+    "k_surprise": 9999,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 44,
+    "k_true": 11,
+    "k_surprise": 9999,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 45,
+    "k_true": 12,
+    "k_surprise": 9999,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.1,
+    "seed": 46,
+    "k_true": 12,
+    "k_surprise": 9999,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 42,
+    "k_true": 9,
+    "k_surprise": 9999,
+    "k_modularity": 9
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 43,
+    "k_true": 11,
+    "k_surprise": 9999,
+    "k_modularity": 11
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 44,
+    "k_true": 11,
+    "k_surprise": 9999,
+    "k_modularity": 10
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 45,
+    "k_true": 12,
+    "k_surprise": 9999,
+    "k_modularity": 12
+  },
+  {
+    "experiment": "C3",
+    "mu": 0.3,
+    "seed": 46,
+    "k_true": 12,
+    "k_surprise": 9999,
+    "k_modularity": 12
+  }
+]

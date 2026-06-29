@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+results/
+test_results/
+configs/experiments/
+figures/
+frontend/node_modules/
+frontend/build/
+e*.log

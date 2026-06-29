@@ -57,7 +57,7 @@ def main():
         G, ground_truth = generate_lfr(n, mu, min_community, max_community, seed)
 
         np.random.seed(seed)
-        partition_0 = leidenalg.find_partition(G, leidenalg.SurpriseVertexPartition, seed=seed)
+        partition_0 = leidenalg.find_partition(G, leidenalg.SignificanceVertexPartition, seed=seed)
         p_t_minus_1 = partition_0.membership
         p_cold_prev = partition_0.membership
 
@@ -66,13 +66,13 @@ def main():
             G.add_edges(edges)
 
             t0 = time.perf_counter()
-            p_cold = leidenalg.find_partition(G, leidenalg.SurpriseVertexPartition, seed=seed + t)
+            p_cold = leidenalg.find_partition(G, leidenalg.SignificanceVertexPartition, seed=seed + t)
             t_cold = time.perf_counter() - t0
 
             t0 = time.perf_counter()
             p_warm = leidenalg.find_partition(
                 G,
-                leidenalg.SurpriseVertexPartition,
+                leidenalg.SignificanceVertexPartition,
                 initial_membership=p_t_minus_1,
                 seed=seed + t
             )
@@ -102,7 +102,7 @@ def main():
             p_t_minus_1 = p_warm.membership
             p_cold_prev = p_cold.membership
 
-    with open('validations/validation_b_results.json', 'w') as f:
+    with open('validations/validation_b_significance_results.json', 'w') as f:
         json.dump(results, f, indent=2)
 
     batches = range(1, num_batches + 1)
@@ -124,7 +124,7 @@ def main():
     plt.title('NMI: Warm vs Cold Start')
     plt.legend()
     plt.grid(True)
-    plt.savefig('validations/validation_b_nmi_plot.png')
+    plt.savefig('validations/validation_b_significance_nmi_plot.png')
 
     plt.figure(figsize=(10, 6))
     plt.errorbar(batches, avg_speedup, yerr=std_speedup, marker='o')
@@ -135,9 +135,9 @@ def main():
     plt.title('Speedup from Warm Start')
     plt.legend()
     plt.grid(True)
-    plt.savefig('validations/validation_b_speedup_plot.png')
+    plt.savefig('validations/validation_b_significance_speedup_plot.png')
 
-    with open('validations/validation_b_report.md', 'w') as f:
+    with open('validations/validation_b_significance_report.md', 'w') as f:
         f.write("# Validation B: Warm-Start Effectiveness\n\n")
         f.write("## Success Criteria\n")
         f.write("- NMI(P_warm) >= 0.95 * NMI(P_cold) across all batches and seeds (mean)\n")

@@ -1,0 +1,10 @@
+{
+  "experiment_id": "default",
+  "dataset": {"type": "lfr", "n": 5000, "mu": 0.3, "min_community": 20, "max_community": 200, "average_degree": 15},
+  "stream": {"type": "random_uniform", "batch_size": 50, "num_batches": 200},
+  "algorithm": "isl_1hop",
+  "params": {"K": 50, "delta_dwell": 2, "tau_min": 1e-6, "max_iter": 100, "num_orderings": 3, "R_max": 3},
+  "seeds": [42, 123, 456, 789, 1011, 1213, 1415, 1617, 1819, 2021],
+  "baselines": ["static_significance", "static_leiden", "bfs_leiden", "no_update"],
+  "output_dir": "results/default/"
+}
