@@ -5,7 +5,7 @@ from isl.visualization import PaperFigureGenerator
 
 @pytest.fixture
 def mock_results():
-    return {'isl_1hop': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.9, 'std': 0.1}, 'time_ms': {'mean': 10, 'std': 1}, 'affected_set_fraction': {'mean': 0.1, 'std': 0}, 'community_count': {'mean': 5, 'std': 1}}], 'static_leiden': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.8, 'std': 0.1}, 'time_ms': {'mean': 15, 'std': 1}, 'community_count': {'mean': 6, 'std': 1}}], 'static_surprise': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.8, 'std': 0.1}, 'time_ms': {'mean': 15, 'std': 1}, 'community_count': {'mean': 6, 'std': 1}}]}
+    return {'isl_1hop': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.9, 'std': 0.1}, 'time_ms': {'mean': 10, 'std': 1}, 'affected_set_fraction': {'mean': 0.1, 'std': 0}, 'community_count': {'mean': 5, 'std': 1}}], 'static_leiden': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.8, 'std': 0.1}, 'time_ms': {'mean': 15, 'std': 1}, 'community_count': {'mean': 6, 'std': 1}}], 'static_significance': [{'batch_idx': 1, 'nmi_gt': {'mean': 0.8, 'std': 0.1}, 'time_ms': {'mean': 15, 'std': 1}, 'community_count': {'mean': 6, 'std': 1}}]}
 
 def test_figure_1_generates_no_error(mock_results, tmpdir):
     gen = PaperFigureGenerator(str(tmpdir))
