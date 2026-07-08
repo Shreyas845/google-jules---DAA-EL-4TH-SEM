@@ -1,7 +1,21 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+
+# Virtual environments
+.venv/
+.venv_backup/
+venv/
+env/
+
+# Node / frontend
+node_modules/
+frontend/build/
+frontend.zip
+
+# Experiment & test outputs (regenerated, not source)
 results/
 test_results/
 configs/experiments/

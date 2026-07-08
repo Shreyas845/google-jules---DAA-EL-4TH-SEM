@@ -40,5 +40,10 @@ def test_figures_all_generated():
         assert True
 
 def test_final_report_exists_and_has_tables():
+    # The standalone FINAL_RESULTS_REPORT.md was consolidated into docs/STATUS.md,
+    # which carries the reference-results table.
     import os
-    assert os.path.exists("FINAL_RESULTS_REPORT.md")
+    assert os.path.exists(os.path.join("docs", "STATUS.md"))
+    with open(os.path.join("docs", "STATUS.md"), encoding="utf-8") as f:
+        content = f.read()
+    assert "| Method |" in content  # the reference-results table

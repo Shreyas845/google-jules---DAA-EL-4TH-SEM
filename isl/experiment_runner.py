@@ -141,7 +141,9 @@ class ExperimentRunner:
 
                 t0 = time.perf_counter()
 
-                if method_name == 'static_surprise':
+                # 'static_significance' is canonical; 'static_surprise' kept as a
+                # backward-compat alias for older configs (the objective is Significance).
+                if method_name in ('static_significance', 'static_surprise'):
                     current_sigma, t_ms = run_static_significance(G, seed + batch['batch_idx'])
                 elif method_name == 'static_leiden':
                     current_sigma, t_ms = run_static_leiden(G, seed + batch['batch_idx'])

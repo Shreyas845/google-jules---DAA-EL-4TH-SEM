@@ -1,10 +1,10 @@
 {
-  "experiment_id": "gate5_experiment",
+  "experiment_id": "smoke_test",
   "dataset": {"type": "lfr", "n": 100, "mu": 0.1, "min_community": 10, "max_community": 20, "average_degree": 5, "max_degree": 15},
   "stream": {"type": "random_uniform", "batch_size": 10, "num_batches": 5},
   "algorithm": "isl_1hop",
   "params": {"K": 50, "delta_dwell": 2, "tau_min": 1e-6, "max_iter": 10, "num_orderings": 1, "R_max": 3},
   "seeds": [42],
-  "baselines": ["static_surprise", "static_leiden", "bfs_leiden", "no_update"],
-  "output_dir": "results/gate5_experiment/"
+  "baselines": ["static_significance", "static_leiden", "bfs_leiden", "no_update"],
+  "output_dir": "results/smoke_test/"
 }

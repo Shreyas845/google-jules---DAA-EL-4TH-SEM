@@ -1,3 +1,15 @@
+# Backend (FastAPI) — includes the ISL library deps, since the experiment endpoints
+# import from isl/. Install from the repo root so both are on the path:
+#   pip install -r requirements.txt -r backend/requirements.txt
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
+
+# ISL algorithm library dependencies (see root requirements.txt).
+# networkx is needed by the graph-trace endpoint (LFR generation).
+igraph>=0.10
+leidenalg>=0.10
+numpy
+scikit-learn
+scipy
+networkx
